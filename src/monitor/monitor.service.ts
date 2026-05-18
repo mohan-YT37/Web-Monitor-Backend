@@ -566,9 +566,11 @@ export class MonitorService {
 
       if (monitor.ssl_enabled) {
         try {
-          const sslData = await sslChecker(hostname);
-
-          monitor.ssl_enabled = sslData.valid || false;
+          const sslData = await sslChecker(hostname, {
+            method: 'GET',
+            port: 443,
+            rejectUnauthorized: false,
+          });
 
           monitor.ssl_expiry_date = sslData.validTo || 'Unavailable';
 
@@ -764,8 +766,9 @@ export class MonitorService {
       console.log('\n');
       console.log('DOMAIN');
       console.log('-----------------------------');
-      console.log('Domain Expiry :', monitor.domain_expiry_date);
-      console.log('Domain Days   :', monitor.domain_days_left);
+      console.log('Domain Enabled :', monitor.domain_enabled);
+      console.log('Domain Expiry  :', monitor.domain_expiry_date);
+      console.log('Domain Days    :', monitor.domain_days_left);
       console.log('\n');
       console.log('DOWNTIME LOGS');
       console.log('-----------------------------');
