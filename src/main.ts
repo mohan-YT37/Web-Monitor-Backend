@@ -10,7 +10,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:5173',
       'http://localhost:3000',
-      'https://web-monitor-frontend-phi.vercel.app',
+      'https://web-monitor-frontend-pi.vercel.app',
     ],
     credentials: true,
   });
