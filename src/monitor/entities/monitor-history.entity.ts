@@ -13,7 +13,9 @@ export class MonitorHistory {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @ManyToOne(() => Monitor, (monitor) => monitor.history)
+  @ManyToOne(() => Monitor, (monitor) => monitor.history, {
+    onDelete: 'CASCADE',
+  })
   monitor!: Monitor;
 
   @Column()
