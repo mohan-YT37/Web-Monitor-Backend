@@ -1,6 +1,13 @@
-// CreateMonitorDto with all backend-required fields
-import { IsString, IsBoolean, IsNumber, IsOptional, IsEmail, IsIn } from 'class-validator';
-import { Type } from 'class-transformer';
+
+import {
+  IsString,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsEmail,
+  IsIn,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateMonitorDto {
   @IsString()
@@ -21,17 +28,17 @@ export class CreateMonitorDto {
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
-  retryCount?: number = 2;
+  retry_count?: number = 2;
+  
+  @Type(() => Boolean)
+  @IsBoolean()
+  @IsOptional()
+  ssl_enabled?: boolean = true;
 
   @Type(() => Boolean)
   @IsBoolean()
   @IsOptional()
-  sslEnabled?: boolean = true;
-
-  @Type(() => Boolean)
-  @IsBoolean()
-  @IsOptional()
-  domainEnabled?: boolean = true;
+  domain_enabled?: boolean = true;
 
   @Type(() => Boolean)
   @IsBoolean()
@@ -41,8 +48,9 @@ export class CreateMonitorDto {
   @IsString()
   @IsIn(['email', 'webhook', 'both'])
   @IsOptional()
-  notificationType?: string = 'email';
+  notification_type?: string = 'email';
 
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsEmail()
   @IsOptional()
   notification_email?: string;

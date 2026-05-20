@@ -1,27 +1,35 @@
-import { Injectable } from '@nestjs/common';
 
-import { Cron } from '@nestjs/schedule';
-
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { MonitorService } from './monitor.service';
-
 import { MonitorGateway } from './monitor.gateway';
 
 @Injectable()
 export class MonitorScheduler {
+  private readonly logger = new Logger(MonitorScheduler.name);
+
   constructor(
     private readonly monitorService: MonitorService,
     private readonly gateway: MonitorGateway,
   ) {}
 
-  // Every 10 seconds
-  @Cron('*/10 * * * * *') //Run function every 10 seconds
-  async handleMonitoring() {
-    try {
-      const monitors = await this.monitorService.runMonitoring();
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleIntervalMonitoring() {
+    this.logger.log(
+      `[SCHEDULER] Running interval checks at ${new Date().toLocaleTimeString()}`,
+    );
 
-      this.gateway.sendMonitorUpdate(monitors);
-    } catch (err) {
-      console.log(err);
+    try {
+      const updatedMonitors = await this.monitorService.runMonitoring();
+
+      if (updatedMonitors.length > 0) {
+        this.gateway.sendBatchUpdate(updatedMonitors);
+        this.logger.log(
+          `[SCHEDULER] Completed - ${updatedMonitors.length} monitors updated`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.error(`[SCHEDULER] Error: ${err.message}`);
     }
   }
 }
