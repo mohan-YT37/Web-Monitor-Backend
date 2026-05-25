@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
-
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -13,19 +12,20 @@ async function bootstrap() {
       'https://web-monitor-frontend-phi.vercel.app',
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
   app.useGlobalPipes(
-    //This only works when DTO validation fails. It will not work when there is an error in the controller or service.
     new ValidationPipe({
-      whitelist: true, // removes extra fields
-      forbidNonWhitelisted: false, // it onlyallow DTO based feilds only
+      whitelist: true,
+      forbidNonWhitelisted: false,
       transform: true,
       exceptionFactory: (errors) => {
         const formateErrors =
           errors?.map((err) => Object.values(err.constraints || {})).flat() ||
           [];
-        console.log('formateErrors', formateErrors);
+
         return new BadRequestException({
           status: false,
           data: [],
@@ -36,9 +36,9 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000);
 
-  console.log('SERVER RUNNING');
+  console.log(`SERVER RUNNING ON ${process.env.PORT || 3000}`);
 }
 
 bootstrap();
