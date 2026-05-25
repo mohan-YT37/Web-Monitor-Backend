@@ -1,4 +1,3 @@
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -40,6 +39,12 @@ export class Monitor {
 
   @Column({ type: 'int', default: 5 })
   interval!: number;
+
+  @Column({ type: 'int', default: 5 })
+  retry_count!: number;
+
+  @Column({ type: 'int', default: 5 })
+  timeout!: number;
 
   @Column({ type: 'int', nullable: true })
   response_time!: number;
@@ -112,6 +117,9 @@ export class Monitor {
 
   @Column({ type: 'varchar', nullable: true })
   last_up_at!: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  notification_type!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   notification_email!: string;

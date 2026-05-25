@@ -55,3 +55,15 @@ export const errorResponse = (
     statusCode,
   );
 };
+
+export const permissionDenied = (action: string, module: string) => {
+  throw new HttpException(
+    {
+      status: false,
+      message: `You are not allowed to ${action} ${module}`,
+      data: [],
+      statusCode: HttpStatus.FORBIDDEN,
+    },
+    HttpStatus.FORBIDDEN,
+  );
+};

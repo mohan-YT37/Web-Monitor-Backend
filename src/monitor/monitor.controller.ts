@@ -20,7 +20,7 @@
   export class MonitorController {
     constructor(private monitorService: MonitorService) {}
 
-    @Post()
+    @Post('create')
     create(@Body() body: CreateMonitorDto) {
       console.log('body : ', body);
       return this.monitorService.create(body);
@@ -52,16 +52,26 @@
       return this.monitorService.getTimeRanges();
     }
 
+     @Get('retryoptions')
+    getRetryOptions() {
+      return this.monitorService.getRetryOptions();
+    }
+
+     @Get('notificationtype')
+    getNotificationTypes() {
+      return this.monitorService.getNotificationTypes();
+    }
+
     @Get()
     findAll(
       @Query('search') search?: string,
       @Query('filter') filter?: string,
-      @Query('status') status?: string,
+      @Query('sort') sort?: string,
     ) {
       return this.monitorService.findAll({
         search,
         filter,
-        status,
+        sort,
       });
     }
 

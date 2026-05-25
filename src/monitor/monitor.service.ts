@@ -1,10 +1,9 @@
-
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import axios from 'axios';
 import * as ping from 'ping';
-import * as dns from 'dns'; 
+import * as dns from 'dns';
 import sslChecker from 'ssl-checker';
 import { Monitor } from './entities/monitor.entity';
 import { MonitorHistory } from './entities/monitor-history.entity';
@@ -380,6 +379,9 @@ export class MonitorService {
         monitor.status = 'PAUSED';
         await this.monitorRepo.save(monitor);
       }
+      console.log(
+        `******* ${monitor.name} is PAUSED in performIntervalCheck *******`,
+      );
       return monitor;
     }
 
@@ -551,8 +553,11 @@ export class MonitorService {
         interval: data.interval || 5,
         ssl_enabled: data.ssl_enabled ?? true,
         domain_enabled: data.domain_enabled ?? true,
+        notification_type: data?.notification_type,
         notification_email: data.notification_email || '',
         status: 'PENDING',
+        timeout: data?.timeout,
+        retry_count: data?.retry_count,
       });
 
       const savedMonitor = await this.monitorRepo.save(monitor);
@@ -586,6 +591,9 @@ export class MonitorService {
           monitor.status = 'PAUSED';
           await this.monitorRepo.save(monitor);
         }
+        console.log(
+          `******* ${monitor.name} is PAUSED in runMonitoring *******`,
+        );
         updatedMonitors.push(monitor);
         continue;
       }
@@ -605,39 +613,73 @@ export class MonitorService {
     return updatedMonitors;
   }
 
-  async findAll(query?: { search?: string; filter?: string; status?: string }) {
+  async findAll(query?: { search?: string; filter?: string; sort?: string }) {
     try {
       const qb = this.monitorRepo
         .createQueryBuilder('monitor')
-        .leftJoinAndSelect('monitor.history', 'history')
-        .orderBy('monitor.created_at', 'DESC');
+        .leftJoinAndSelect('monitor.history', 'history');
 
+      // Search
       if (query?.search) {
         qb.andWhere('(monitor.name LIKE :search OR monitor.url LIKE :search)', {
           search: `%${query.search}%`,
         });
       }
 
-      if (query?.status) {
-        switch (query.status.toUpperCase()) {
+      // Filter
+      if (query?.filter) {
+        switch (query.filter.toUpperCase()) {
           case 'UP':
-            qb.andWhere('monitor.status = :status', { status: 'UP' });
+            qb.andWhere('monitor.status = :status', {
+              status: 'UP',
+            });
             break;
+
           case 'DOWN':
-            qb.andWhere('monitor.status = :status', { status: 'DOWN' });
+            qb.andWhere('monitor.status = :status', {
+              status: 'DOWN',
+            });
             break;
+
           case 'PAUSED':
-            qb.andWhere('monitor.paused = :paused', { paused: true });
+            qb.andWhere('monitor.paused = :paused', {
+              paused: true,
+            });
             break;
         }
       }
 
-      if (query?.filter === 'A_Z') {
-        qb.orderBy('monitor.name', 'ASC');
+      // Sort
+      if (query?.sort) {
+        switch (query.sort.toUpperCase()) {
+          case 'A_Z':
+            qb.orderBy('monitor.name', 'ASC');
+            break;
+
+          case 'Z_A':
+            qb.orderBy('monitor.name', 'DESC');
+            break;
+
+          case 'OLDEST':
+            qb.orderBy('monitor.created_at', 'ASC');
+            break;
+
+          case 'NEWEST':
+          default:
+            qb.orderBy('monitor.created_at', 'DESC');
+            break;
+        }
+      } else {
+        qb.orderBy('monitor.created_at', 'DESC');
       }
 
-      const monitors = await qb.getMany();
-      return successResponse(monitors, 'Monitors fetched successfully', 200);
+      const [data, count] = await qb.getManyAndCount();
+
+      if (!data || data.length === 0) {
+        return successResponse([], 'No monitors found', 200);
+      }
+
+      return successResponse(data, 'Monitors fetched successfully', 200);
     } catch (error) {
       CatchError(error);
     }
@@ -692,8 +734,11 @@ export class MonitorService {
         paused: data.paused ?? monitor.paused,
         ssl_enabled: data.ssl_enabled ?? monitor.ssl_enabled,
         domain_enabled: data.domain_enabled ?? monitor.domain_enabled,
+        notification_type: data?.notification_type,
         notification_email:
           data.notification_email ?? monitor.notification_email,
+        timeout: data?.timeout,
+        retry_count: data?.retry_count,
       });
 
       if (typeof data.paused === 'boolean') {
@@ -708,7 +753,7 @@ export class MonitorService {
       const fullMonitor = await this.getMonitorWithFullHistory(updated.id);
       this.monitorGateway.sendMonitorUpdate(fullMonitor);
 
-      return successResponse(updated, 'Monitor updated successfully',200);
+      return successResponse(updated, 'Monitor updated successfully', 200);
     } catch (error) {
       CatchError(error);
     }
@@ -729,7 +774,7 @@ export class MonitorService {
           if (monitorById) {
             await this.historyRepo.delete({ monitor: { id: monitorById.id } });
             await this.monitorRepo.delete({ id: monitorById.id });
-            return successResponse(null, 'Monitor deleted successfully',200);
+            return successResponse(null, 'Monitor deleted successfully', 200);
           }
         }
 
@@ -742,7 +787,7 @@ export class MonitorService {
       await this.historyRepo.delete({ monitor: { id: monitor.id } });
       await this.monitorRepo.delete({ public_id });
 
-      return successResponse(null, 'Monitor deleted successfully',200);
+      return successResponse(null, 'Monitor deleted successfully', 200);
     } catch (error) {
       CatchError(error);
     }
@@ -781,7 +826,8 @@ export class MonitorService {
       await this.monitorRepo.delete({ id: In(ids) });
       return successResponse(
         { deleted: monitors.length },
-        'Monitors deleted successfully',200
+        'Monitors deleted successfully',
+        200,
       );
     } catch (error) {
       CatchError(error);
@@ -853,9 +899,9 @@ export class MonitorService {
     return successResponse(
       [
         { value: '', label: 'All' },
-        { value: 'up', label: 'Up' },
-        { value: 'down', label: 'Down' },
-        { value: 'paused', label: 'Paused' },
+        { value: 'UP', label: 'Up' },
+        { value: 'DOWN', label: 'Down' },
+        { value: 'PAUSED', label: 'Paused' },
       ],
       'Filter options fetched successfully',
       200,
@@ -912,8 +958,8 @@ export class MonitorService {
       [
         { value: 'A_Z', label: 'A to Z' },
         { value: 'Z_A', label: 'Z to A' },
-        { value: 'newest', label: 'Newest First' },
-        { value: 'oldest', label: 'Oldest First' },
+        { value: 'NEWEST', label: 'Newest First' },
+        { value: 'OLDEST', label: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,
@@ -929,6 +975,32 @@ export class MonitorService {
         { value: '30d', label: 'Last 30 days' },
       ],
       'Time range options fetched successfully',
+    );
+  }
+
+  async getNotificationTypes() {
+    return successResponse(
+      [
+        { value: 'email', label: 'Email' },
+        { value: 'sms', label: 'SMS' },
+        { value: 'telegram', label: 'Telegram' },
+        { value: 'webhook', label: 'Webhook' },
+      ],
+      'Notification Type options fetched successfully',
+    );
+  }
+
+  async getRetryOptions() {
+    return successResponse(
+      [
+        { value: 1, label: 'One' },
+        { value: 2, label: 'Two' },
+        { value: 3, label: 'Three' },
+        { value: 4, label: 'Four' },
+        { value: 5, label: 'Five' },
+        { value: 6, label: 'Six' },
+      ],
+      'Retry options fetched successfully',
     );
   }
 }
