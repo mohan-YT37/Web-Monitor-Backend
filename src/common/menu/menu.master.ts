@@ -35,4 +35,28 @@ export const MENU_MASTER = {
     path: '/users',
     icon: 'Users',
   },
+  settings: {
+    id: 6,
+    key: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    icon: 'Settings',
+    children: [
+      {
+        id: 61,
+        key: 'client',
+        label: 'Client',
+        path: '/settings/client',
+        icon: 'Building2',
+      },
+
+      {
+        id: 62,
+        key: 'employee',
+        label: 'Employee',
+        path: '/settings/employee',
+        icon: 'UserCog',
+      },
+    ],
+  },
 };

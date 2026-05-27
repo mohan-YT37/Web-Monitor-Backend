@@ -5,6 +5,8 @@ import {
   OneToMany,
   BeforeInsert,
   CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { MonitorHistory } from './monitor-history.entity';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,11 +24,8 @@ export class Monitor {
     this.public_id = uuidv4().replace(/-/g, '').slice(0, 30);
   }
 
-  @CreateDateColumn()
-  created_at!: Date;
-
-  @Column({ type: 'varchar', length: 100 })
-  name!: string;
+  @Column({ type: 'varchar', length: 100, default: '' })
+  website_name!: string;
 
   @Column({ type: 'varchar', length: 255 })
   url!: string;
@@ -128,4 +127,22 @@ export class Monitor {
     cascade: true,
   })
   history!: MonitorHistory[];
+
+  @CreateDateColumn()
+  created_at!: Date;
+
+  @Column({ nullable: true })
+  created_by!: number;
+
+  @UpdateDateColumn()
+  updated_at!: Date;
+
+  @Column({ nullable: true })
+  updated_by!: number;
+
+  @DeleteDateColumn()
+  deleted_at!: Date;
+
+  @Column({ nullable: true })
+  deleted_by!: number;
 }

@@ -17,6 +17,7 @@ import { CatchError } from 'src/common/response/error.utils';
 import { MonitorGateway } from './monitor.gateway';
 import type { UpdateMonitorDto } from './dto/update-monitor.dto';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
+import { Cron } from '@nestjs/schedule';
 
 @Injectable()
 export class MonitorService {
@@ -188,11 +189,11 @@ export class MonitorService {
       await this.transporter.sendMail({
         from: `${process.env.MAIL_FROM || 'Monitor'} <${process.env.MAIL_USER}>`,
         to: monitor.notification_email,
-        subject: `[DOWN] Website is Down: ${monitor.name}`,
+        subject: `[DOWN] Website is Down: ${monitor.website_name}`,
         html: `
           <div style="font-family:Arial;padding:20px">
             <h2 style="color:red">Website Down Alert</h2>
-            <p><b>${monitor.name}</b> is currently DOWN</p>
+            <p><b>${monitor.website_name}</b> is currently DOWN</p>
             <p><b>URL:</b> ${monitor.url}</p>
             <p><b>Error:</b> ${monitor.last_error || 'Connection failed'}</p>
             <p><b>Down Time:</b> ${new Date().toLocaleString()}</p>
@@ -201,9 +202,12 @@ export class MonitorService {
           </div>
         `,
       });
-      console.log(`[EMAIL] Down notification sent for ${monitor.name}`);
+      console.log(`[EMAIL] Down notification sent for ${monitor.website_name}`);
     } catch (err: any) {
-      console.log(`[EMAIL] Failed to send for ${monitor.name}:`, err.message);
+      console.log(
+        `[EMAIL] Failed to send for ${monitor.website_name}:`,
+        err.message,
+      );
     }
   }
 
@@ -217,11 +221,11 @@ export class MonitorService {
       await this.transporter.sendMail({
         from: `${process.env.MAIL_FROM || 'Monitor'} <${process.env.MAIL_USER}>`,
         to: monitor.notification_email,
-        subject: `[RECOVERED] Website is Back Up: ${monitor.name}`,
+        subject: `[RECOVERED] Website is Back Up: ${monitor.website_name}`,
         html: `
           <div style="font-family:Arial;padding:20px">
             <h2 style="color:green">Website Recovered</h2>
-            <p><b>${monitor.name}</b> is now UP again</p>
+            <p><b>${monitor.website_name}</b> is now UP again</p>
             <p><b>URL:</b> ${monitor.url}</p>
             <p><b>Recovered At:</b> ${new Date().toLocaleString()}</p>
             <p><b>Total Downtime:</b> ${downtimeMinutes} minute(s)</p>
@@ -230,9 +234,14 @@ export class MonitorService {
           </div>
         `,
       });
-      console.log(`[EMAIL] Recovery notification sent for ${monitor.name}`);
+      console.log(
+        `[EMAIL] Recovery notification sent for ${monitor.website_name}`,
+      );
     } catch (err: any) {
-      console.log(`[EMAIL] Failed to send for ${monitor.name}:`, err.message);
+      console.log(
+        `[EMAIL] Failed to send for ${monitor.website_name}:`,
+        err.message,
+      );
     }
   }
 
@@ -249,7 +258,10 @@ export class MonitorService {
     return monitor;
   }
 
-  async performInstantCheck(monitor: Monitor): Promise<Monitor> {
+  async performInstantCheck(
+    monitor: Monitor,
+    sendNotification = false,
+  ): Promise<Monitor> {
     const startTime = Date.now();
     let finalUrl = monitor.url;
     if (!finalUrl.startsWith('http')) {
@@ -324,7 +336,7 @@ export class MonitorService {
       });
       await this.historyRepo.save(history);
 
-      if (savedMonitor.status === 'DOWN') {
+      if (savedMonitor.status === 'DOWN' && sendNotification) {
         await this.sendDownNotification(savedMonitor);
       }
 
@@ -363,7 +375,9 @@ export class MonitorService {
       });
       await this.historyRepo.save(history);
 
-      await this.sendDownNotification(savedMonitor);
+      if (sendNotification) {
+        await this.sendDownNotification(savedMonitor);
+      }
 
       const fullMonitor = await this.getMonitorWithFullHistory(savedMonitor.id);
       this.monitorGateway.sendMonitorUpdate(fullMonitor);
@@ -380,7 +394,7 @@ export class MonitorService {
         await this.monitorRepo.save(monitor);
       }
       console.log(
-        `******* ${monitor.name} is PAUSED in performIntervalCheck *******`,
+        `******* ${monitor.website_name} is PAUSED in performIntervalCheck *******`,
       );
       return monitor;
     }
@@ -432,7 +446,7 @@ export class MonitorService {
           await this.sendDownNotification(monitor);
         } else if (previousStatus === 'DOWN') {
           console.log(
-            `[${monitor.name}] STATUS: DOWN | Error: ${monitor.last_error}`,
+            `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
           );
         }
       }
@@ -512,7 +526,7 @@ export class MonitorService {
         await this.sendDownNotification(monitor);
       } else if (previousStatus === 'DOWN') {
         console.log(
-          `[${monitor.name}] STATUS: DOWN | Error: ${monitor.last_error}`,
+          `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
         );
       }
 
@@ -534,10 +548,10 @@ export class MonitorService {
     }
   }
 
-  async create(data: CreateMonitorDto) {
+  async create(data: CreateMonitorDto, user: any) {
     try {
       const existingMonitor = await this.monitorRepo.findOne({
-        where: [{ url: data.url }, { name: data.name }],
+        where: [{ url: data.url }, { website_name: data.website_name }],
       });
 
       if (existingMonitor) {
@@ -548,20 +562,28 @@ export class MonitorService {
       }
 
       const monitor = this.monitorRepo.create({
-        name: data.name,
+        website_name: data.website_name,
         url: data.url,
         interval: data.interval || 5,
         ssl_enabled: data.ssl_enabled ?? true,
         domain_enabled: data.domain_enabled ?? true,
+        paused: data?.paused ?? false,
         notification_type: data?.notification_type,
         notification_email: data.notification_email || '',
         status: 'PENDING',
+
         timeout: data?.timeout,
         retry_count: data?.retry_count,
+
+        created_by: user?.id,
       });
 
       const savedMonitor = await this.monitorRepo.save(monitor);
-      const checkedMonitor = await this.performInstantCheck(savedMonitor);
+
+      const checkedMonitor = await this.performInstantCheck(
+        savedMonitor,
+        false,
+      );
 
       return successResponse(
         checkedMonitor,
@@ -574,56 +596,132 @@ export class MonitorService {
   }
 
   async runMonitoring(): Promise<Monitor[]> {
-    const monitors = await this.monitorRepo.find({
-      relations: ['history'],
-    });
+    // const monitors = await this.monitorRepo.find({
+    //   relations: ['history'],
+    // });
+    const monitors = await this.monitorRepo.find();
+
     this.logMonitoringStart(monitors.length);
     const updatedMonitors: Monitor[] = [];
 
-    for (const monitor of monitors) {
-      if (!monitor.last_checked) {
-        updatedMonitors.push(monitor);
-        continue;
-      }
+    const results = await Promise.allSettled(
+      monitors.map(async (monitor) => {
+        if (monitor.paused) return monitor;
 
-      if (monitor.paused) {
-        if (monitor.status !== 'PAUSED') {
-          monitor.status = 'PAUSED';
-          await this.monitorRepo.save(monitor);
+        if (!monitor.last_checked) return monitor;
+
+        const lastChecked = new Date(monitor.last_checked).getTime();
+
+        const now = Date.now();
+
+        const intervalMs = monitor.interval * 60 * 1000;
+
+        if (now - lastChecked >= intervalMs) {
+          return this.performIntervalCheck(monitor);
         }
-        console.log(
-          `******* ${monitor.name} is PAUSED in runMonitoring *******`,
-        );
-        updatedMonitors.push(monitor);
-        continue;
-      }
 
-      const lastChecked = new Date(monitor.last_checked).getTime();
-      const now = Date.now();
-      const intervalMs = monitor.interval * 60 * 1000;
+        return monitor;
+      }),
+    );
 
-      if (now - lastChecked >= intervalMs) {
-        const updated = await this.performIntervalCheck(monitor);
-        updatedMonitors.push(updated);
-      } else {
-        updatedMonitors.push(monitor);
-      }
-    }
+    const finalResults = results
+      .filter((r) => r.status === 'fulfilled')
+      .map((r: any) => r.value);
+
     this.logMonitoringEnd();
-    return updatedMonitors;
+
+    return finalResults;
   }
 
-  async findAll(query?: { search?: string; filter?: string; sort?: string }) {
+  @Cron('0 30 17 * * *', {
+    timeZone: 'Asia/Kolkata',
+  })
+  async sendDailyDownReport() {
+    try {
+      const downSites = await this.monitorRepo.find({
+        where: {
+          status: 'DOWN',
+        },
+      });
+
+      if (!downSites.length) {
+        console.log('No down sites for daily report');
+        return;
+      }
+
+      const rows = downSites
+        .map(
+          (site) => `
+          <tr>
+            <td>${site.website_name}</td>
+            <td>${site.url}</td>
+            <td>${site.last_error || '-'}</td>
+            <td>${site.response_time || 0} ms</td>
+            <td>${site.last_checked || '-'}</td>
+          </tr>
+        `,
+        )
+        .join('');
+
+      if (!this.transporter) {
+        console.log('Mail transporter not configured');
+        return;
+      }
+
+      await this.transporter.sendMail({
+        from: `${process.env.MAIL_FROM} <${process.env.MAIL_USER}>`,
+        to: process.env.REPORT_EMAIL,
+        subject: `Daily Down Sites Report`,
+        html: `
+        <div style="font-family:Arial">
+          <h2>Currently Down Sites</h2>
+
+          <table border="1" cellpadding="8" cellspacing="0">
+            <thead>
+              <tr>
+                <th>Website</th>
+                <th>URL</th>
+                <th>Error</th>
+                <th>Response</th>
+                <th>Last Checked</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      `,
+      });
+
+      console.log('Daily report mail sent');
+    } catch (error) {
+      console.log('Daily report failed', error);
+    }
+  }
+
+  async findAll(
+    query?: { search?: string; filter?: string; sort?: string },
+    user?: any,
+  ) {
     try {
       const qb = this.monitorRepo
         .createQueryBuilder('monitor')
         .leftJoinAndSelect('monitor.history', 'history');
 
+      qb.andWhere('monitor.created_by = :userId', {
+        userId: user?.id,
+      });
+
       // Search
       if (query?.search) {
-        qb.andWhere('(monitor.name LIKE :search OR monitor.url LIKE :search)', {
-          search: `%${query.search}%`,
-        });
+        qb.andWhere(
+          '(monitor.website_name LIKE :search OR monitor.url LIKE :search)',
+          {
+            search: `%${query.search}%`,
+          },
+        );
       }
 
       // Filter
@@ -653,11 +751,11 @@ export class MonitorService {
       if (query?.sort) {
         switch (query.sort.toUpperCase()) {
           case 'A_Z':
-            qb.orderBy('monitor.name', 'ASC');
+            qb.orderBy('monitor.website_name', 'ASC');
             break;
 
           case 'Z_A':
-            qb.orderBy('monitor.name', 'DESC');
+            qb.orderBy('monitor.website_name', 'DESC');
             break;
 
           case 'OLDEST':
@@ -685,10 +783,10 @@ export class MonitorService {
     }
   }
 
-  async findOne(public_id: string) {
+  async findOne(public_id: string, user: any) {
     try {
       const monitor = await this.monitorRepo.findOne({
-        where: { public_id },
+        where: { public_id, created_by: user?.id },
         relations: ['history'],
       });
 
@@ -708,10 +806,10 @@ export class MonitorService {
     }
   }
 
-  async update(public_id: string, data: UpdateMonitorDto) {
+  async update(public_id: string, data: UpdateMonitorDto, user: any) {
     try {
       const monitor = await this.monitorRepo.findOne({
-        where: { public_id },
+        where: { public_id, created_by: user?.id },
       });
 
       if (!monitor) {
@@ -728,7 +826,7 @@ export class MonitorService {
       }
 
       Object.assign(monitor, {
-        name: data.name ?? monitor.name,
+        website_name: data.website_name ?? monitor.website_name,
         url: data.url ?? monitor.url,
         interval: data.interval ?? monitor.interval,
         paused: data.paused ?? monitor.paused,
@@ -740,6 +838,7 @@ export class MonitorService {
         timeout: data?.timeout,
         retry_count: data?.retry_count,
       });
+      monitor.updated_by = user?.id;
 
       if (typeof data.paused === 'boolean') {
         if (data.paused) {
@@ -759,7 +858,7 @@ export class MonitorService {
     }
   }
 
-  async remove(public_id: string) {
+  async remove(public_id: string, user: any) {
     try {
       const monitor = await this.monitorRepo.findOne({
         where: { public_id },
@@ -784,6 +883,10 @@ export class MonitorService {
         );
       }
 
+      monitor.deleted_by = user?.id;
+
+      await this.monitorRepo.save(monitor);
+
       await this.historyRepo.delete({ monitor: { id: monitor.id } });
       await this.monitorRepo.delete({ public_id });
 
@@ -793,7 +896,7 @@ export class MonitorService {
     }
   }
 
-  async bulkDelete(public_ids: string[]) {
+  async bulkDelete(public_ids: string[], user: any) {
     try {
       if (!public_ids.length) {
         return errorResponse('No monitor ids provided', 400);
@@ -821,7 +924,11 @@ export class MonitorService {
       }
 
       const ids = monitors.map((m) => m.id);
+      for (const monitor of monitors) {
+        monitor.deleted_by = user?.id;
+      }
 
+      await this.monitorRepo.save(monitors);
       await this.historyRepo.delete({ monitor: { id: In(ids) } });
       await this.monitorRepo.delete({ id: In(ids) });
       return successResponse(
@@ -834,7 +941,7 @@ export class MonitorService {
     }
   }
 
-  async bulkUpload(file: Express.Multer.File) {
+  async bulkUpload(user: any, file: Express.Multer.File) {
     try {
       if (!file) {
         return errorResponse('File is required', 400);
@@ -843,6 +950,28 @@ export class MonitorService {
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const data: any[] = XLSX.utils.sheet_to_json(sheet);
+      // console.log('bulk_upload', data);
+
+      const requiredFields = [
+        'website_name',
+        'url',
+        'interval',
+        'ssl_enabled',
+        'domain_enabled',
+      ];
+
+      const excelHeaders = Object.keys(data[0] || {});
+
+      const missingFields = requiredFields.filter(
+        (field) => !excelHeaders.includes(field),
+      );
+
+      if (missingFields.length > 0) {
+        return errorResponse(
+          `${missingFields.join(', ')} field(s) are missing in Excel file`,
+          400,
+        );
+      }
 
       if (!data.length) {
         return errorResponse('Excel file is empty', 400);
@@ -857,13 +986,14 @@ export class MonitorService {
       const newMonitorsData = data
         .filter((item) => !existingUrls.has(item.url))
         .map((item) => ({
-          name: item.name,
+          website_name: item.website_name,
           url: item.url,
           interval: item.interval || 5,
           ssl_enabled: item.ssl_enabled !== false,
           domain_enabled: item.domain_enabled !== false,
           notification_email: item.notification_email || '',
           status: 'PENDING',
+          created_by: user?.id,
         }));
 
       if (!newMonitorsData.length) {
@@ -878,7 +1008,9 @@ export class MonitorService {
       }
 
       const checkedMonitors = await Promise.all(
-        createdMonitors.map((monitor) => this.performInstantCheck(monitor)),
+        createdMonitors.map((monitor) =>
+          this.performInstantCheck(monitor, false),
+        ),
       );
 
       return successResponse(

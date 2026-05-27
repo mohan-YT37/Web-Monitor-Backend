@@ -11,7 +11,7 @@ import { Transform, Type } from 'class-transformer';
 
 export class CreateMonitorDto {
   @IsString()
-  name!: string;
+  website_name!: string;
 
   @IsString()
   url!: string;

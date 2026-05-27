@@ -7,6 +7,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { EmployeeModule } from './employee/employee.module';
+import { ClientModule } from './client/client.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { UsersModule } from './users/users.module';
     MonitorModule,
     AuthModule,
     UsersModule,
+    EmployeeModule,
+    ClientModule,
   ],
   controllers: [AppController],
   providers: [AppService],

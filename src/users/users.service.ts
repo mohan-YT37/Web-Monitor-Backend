@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { Like, Repository } from 'typeorm';
 import { CatchError } from '../common/response/catch-error.util';
@@ -16,84 +17,138 @@ import { UpdateUserDto } from './dto/update-user.dto';
 export class UsersService {
   constructor(@InjectRepository(User) private userRepo: Repository<User>) {}
 
-  async findAll(page, limit, search) {
+  async findAll(
+    query?: {
+      search?: string;
+      filter?: string;
+      sort?: string;
+      page?: number;
+      limit?: number;
+    },
+    user?: any,
+  ) {
     try {
-      const searchUser = search
-        ? [
-            { username: Like(`%${search}%`) },
-            { role: Like(`%${search}%`) },
-            { active: Like(`%${search}%`) },
-          ]
-        : {};
+      const page = Number(query?.page) || 1;
+      const limit = Number(query?.limit) || 10;
 
-      let users;
-      let total;
+      const qb = this.userRepo.createQueryBuilder('user');
 
-      if (Number(limit) === -1) {
-        users = await this.userRepo.find({
-          where: searchUser,
-          order: { id: 'ASC' },
-          select: [
-            'username',
-            'email',
-            'id',
-            'public_id',
-            'profile_img',
-            'role',
-            'active',
-            'created_at',
-            'updated_at',
-          ],
-        });
-        total = users.length;
-      } else {
-        const [data, count] = await this.userRepo.findAndCount({
-          where: searchUser,
-          skip: (page - 1) * Number(limit),
-          take: limit,
-          order: { id: 'ASC' },
-          select: [
-            'username',
-            'email',
-            'id',
-            'public_id',
-            'profile_img',
-            'role',
-            'active',
-            'created_at',
-            'updated_at',
-          ],
-        });
-
-        users = data;
-        total = count;
+      // SEARCH
+      if (query?.search) {
+        qb.andWhere(
+          `
+        (
+          user.username LIKE :search OR
+          user.role LIKE :search OR
+          user.email LIKE :search
+        )
+      `,
+          {
+            search: `%${query.search}%`,
+          },
+        );
       }
 
-      const usersData = {
-        data: users,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
-      };
+      // FILTER
+      if (query?.filter) {
+        switch (query.filter.toUpperCase()) {
+          case 'ACTIVE':
+            qb.andWhere('user.active = :active', {
+              active: true,
+            });
+            break;
+
+          case 'INACTIVE':
+            qb.andWhere('user.active = :active', {
+              active: false,
+            });
+            break;
+
+          case 'ADMIN':
+            qb.andWhere('user.role = :role', {
+              role: 'ADMIN',
+            });
+            break;
+
+          case 'USER':
+            qb.andWhere('user.role = :role', {
+              role: 'USER',
+            });
+            break;
+        }
+      }
+
+      // SORT
+      if (query?.sort) {
+        switch (query.sort.toUpperCase()) {
+          case 'A_Z':
+            qb.orderBy('user.username', 'ASC');
+            break;
+
+          case 'Z_A':
+            qb.orderBy('user.username', 'DESC');
+            break;
+
+          case 'OLDEST':
+            qb.orderBy('user.created_at', 'ASC');
+            break;
+
+          case 'NEWEST':
+          default:
+            qb.orderBy('user.created_at', 'DESC');
+            break;
+        }
+      } else {
+        qb.orderBy('user.created_at', 'DESC');
+      }
+
+      // SELECT FIELDS
+      qb.select([
+        'user.id',
+        'user.public_id',
+        'user.username',
+        'user.email',
+        'user.profile_img',
+        'user.role',
+        'user.active',
+        'user.created_at',
+        'user.updated_at',
+      ]);
+
+      // PAGINATION
+      if (limit !== -1) {
+        qb.skip((page - 1) * limit).take(limit);
+      }
+
+      const [users, total] = await qb.getManyAndCount();
 
       if (!users || users.length === 0) {
         return successResponse([], 'No Users Found', 200);
       }
 
-      return successResponse(usersData, 'Users Founded', 200);
+      return successResponse(
+        {
+          data: users,
+          pagination: {
+            total,
+            page,
+            limit,
+            totalPages: limit === -1 ? 1 : Math.ceil(total / limit),
+          },
+        },
+        'Users fetched successfully',
+        200,
+      );
     } catch (error) {
       console.error(error);
       return CatchError(error);
     }
   }
 
-  async findOne(public_id: string) {
+  async findOne(public_id: string, user: any) {
     try {
-      const user = await this.userRepo.findOne({
-        where: { public_id: public_id },
+      const userData = await this.userRepo.findOne({
+        where: { public_id: public_id, created_by: user?.id },
         select: [
           'username',
           'email',
@@ -107,10 +162,10 @@ export class UsersService {
         ],
       });
 
-      if (!user) {
+      if (!userData) {
         return errorResponse('User Not Found', 400);
       }
-      return successResponse(user, 'User Founded', 200);
+      return successResponse(userData, 'User Founded', 200);
     } catch (error) {
       console.error(error);
       return CatchError(error);
@@ -123,6 +178,10 @@ export class UsersService {
         return permissionDenied('create', 'users');
       }
 
+      if (!body.password) {
+        return errorResponse('Password is required', 400);
+      }
+
       const existingUser = await this.userRepo.findOne({
         where: { email: body?.email },
       });
@@ -131,10 +190,14 @@ export class UsersService {
         return errorResponse('Email Already Exists', 409);
       }
 
-      const newUser = await this.userRepo.create({
+      const hashedPassword = await bcrypt.hash(body.password, 10);
+
+      const newUser = this.userRepo.create({
         ...body,
+        password: hashedPassword,
         created_by: user?.id,
       });
+
       const savedUser = await this.userRepo.save(newUser);
 
       return successResponse(savedUser, 'User Created Successfully', 201);
@@ -149,28 +212,29 @@ export class UsersService {
       if (!hasPermission(user?.role, 'users', 'edit')) {
         return permissionDenied('edit', 'users');
       }
+
       const findUser = await this.userRepo.findOne({
-        where: { public_id: public_id },
-        select: [
-          'username',
-          'email',
-          'role',
-          'active',
-          'public_id',
-          'profile_img',
-          'id',
-          'created_at',
-          'updated_at',
-        ],
+        where: { public_id, created_by: user?.id },
       });
 
       if (!findUser) {
         return errorResponse('User Not Found', 400);
       }
-      Object.assign(findUser, data); //(target, source) -> it copies values from source into target
+
+      // Hash password only if new password provided
+      if (data.password) {
+        data.password = await bcrypt.hash(data.password, 10);
+      } else {
+        delete data.password;
+      }
+
+      Object.assign(findUser, data);
+
       findUser.updated_by = user?.id;
+
       const savedUser = await this.userRepo.save(findUser);
-      return successResponse(savedUser, 'User Updated Sucessfully', 200);
+
+      return successResponse(savedUser, 'User Updated Successfully', 200);
     } catch (error) {
       console.error(error);
       return CatchError(error);
@@ -184,7 +248,7 @@ export class UsersService {
       }
 
       const findUser = await this.userRepo.findOne({
-        where: { public_id: public_id },
+        where: { public_id: public_id, created_by: user?.id },
       });
 
       if (!findUser) {

@@ -25,27 +25,37 @@ export class UsersController {
 
   @Get('allUsers')
   async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('search') search: string = '',
+    @Query('search') search?: string,
+    @Query('filter') filter?: string,
+    @Query('sort') sort?: string,
+    @Req() req?: Request,
   ) {
-    return await this.usersService.findAll(page, limit, search);
+    const user = req?.user as JwtUser;
+    return await this.usersService.findAll(
+      {
+        search,
+        filter,
+        sort,
+      },
+      user,
+    );
   }
 
   @Get('roles')
   async userRoles() {
     const data = [
       { id: 1, label: 'Super Admin', value: 'super_admin' },
-      { id: 2, label: 'Admin', value: 'admin' },
-      { id: 3, label: 'Manager', value: 'Manager' }   ,
+      { id: 2, label: 'Manager', value: 'Manager' },
+      { id: 3, label: 'Employee', value: 'employee' },
     ];
 
     return successResponse(data, 'User Role Fetced Successfully', 200);
   }
 
   @Get(':public_id')
-  async findOne(@Param('public_id') public_id: string) {
-    return await this.usersService.findOne(public_id);
+  async findOne(@Param('public_id') public_id: string, @Req() req?: Request) {
+    const user = req?.user as JwtUser;
+    return await this.usersService.findOne(public_id, user);
   }
 
   @Post('/create')
