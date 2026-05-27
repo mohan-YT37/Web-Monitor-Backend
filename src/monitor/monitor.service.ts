@@ -947,11 +947,19 @@ export class MonitorService {
         return errorResponse('File is required', 400);
       }
 
+      // Read Excel
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data: any[] = XLSX.utils.sheet_to_json(sheet);
-      // console.log('bulk_upload', data);
 
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      const data: any[] = XLSX.utils.sheet_to_json(sheet);
+
+      // Empty Check
+      if (!data.length) {
+        return errorResponse('Excel file is empty', 400);
+      }
+
+      // Required Fields
       const requiredFields = [
         'website_name',
         'url',
@@ -973,53 +981,147 @@ export class MonitorService {
         );
       }
 
-      if (!data.length) {
-        return errorResponse('Excel file is empty', 400);
+      // Clean Data
+      const cleanedData = data.map((item) => ({
+        id: item.id ? Number(item.id) : null,
+        website_name: item.website_name?.toString()?.trim(),
+        url: item.url?.toString()?.trim(),
+        interval: Number(item.interval) || 5,
+        ssl_enabled:
+          item.ssl_enabled === false || item.ssl_enabled === 'false'
+            ? false
+            : true,
+        domain_enabled:
+          item.domain_enabled === false || item.domain_enabled === 'false'
+            ? false
+            : true,
+        notification_email: item.notification_email || '',
+      }));
+
+      // Validate Empty URL
+      const invalidRows = cleanedData.filter(
+        (item) => !item.website_name || !item.url,
+      );
+
+      if (invalidRows.length > 0) {
+        return errorResponse(
+          'website_name and url are required in all rows',
+          400,
+        );
       }
 
-      const urls = data.map((item) => item.url);
-      const existing = await this.monitorRepo.find({
-        where: { url: In(urls) },
+      // Collect URLs & IDs
+      const urls = cleanedData.map((item) => item.url);
+
+      const ids = cleanedData
+        .map((item) => item.id)
+        .filter((id) => id !== null);
+
+      // Existing URLs
+      const existingMonitors = await this.monitorRepo.find({
+        where: {
+          url: In(urls),
+        },
       });
-      const existingUrls = new Set(existing.map((item) => item.url));
 
-      const newMonitorsData = data
-        .filter((item) => !existingUrls.has(item.url))
-        .map((item) => ({
-          website_name: item.website_name,
+      // Existing IDs
+      const existingIdsData = ids.length
+        ? await this.monitorRepo.find({
+            where: {
+              id: In(ids),
+            },
+          })
+        : [];
+
+      // Validate IDs
+      const validIds = new Set(existingIdsData.map((item) => item.id));
+
+      const invalidIds = ids.filter((id) => !validIds.has(id));
+
+      if (invalidIds.length > 0) {
+        return errorResponse(
+          `Invalid monitor IDs: ${invalidIds.join(', ')}`,
+          400,
+        );
+      }
+
+      // Maps
+      const existingUrlMap = new Map(
+        existingMonitors.map((item) => [item.url, item]),
+      );
+
+      const inserted: Monitor[] = [];
+      const updated: Monitor[] = [];
+      const skipped: any[] = [];
+
+      // Process Rows
+      for (const item of cleanedData) {
+        const existingMonitor = existingUrlMap.get(item.url);
+
+        // CASE 1: New Monitor
+        if (!existingMonitor) {
+          const monitor = this.monitorRepo.create({
+            website_name: item.website_name,
+            url: item.url,
+            interval: item.interval,
+            ssl_enabled: item.ssl_enabled,
+            domain_enabled: item.domain_enabled,
+            notification_email: item.notification_email,
+            status: 'PENDING',
+            created_by: user?.id,
+          });
+
+          const saved = await this.monitorRepo.save(monitor);
+
+          inserted.push(saved);
+
+          continue;
+        }
+
+        // CASE 2: Same ID -> Update
+        if (item.id && existingMonitor.id === item.id) {
+          existingMonitor.website_name = item.website_name;
+
+          existingMonitor.interval = item.interval;
+
+          existingMonitor.ssl_enabled = item.ssl_enabled;
+
+          existingMonitor.domain_enabled = item.domain_enabled;
+
+          existingMonitor.notification_email = item.notification_email;
+
+          const updatedMonitor = await this.monitorRepo.save(existingMonitor);
+
+          updated.push(updatedMonitor);
+
+          continue;
+        }
+
+        // CASE 3: Duplicate URL Different ID
+        skipped.push({
           url: item.url,
-          interval: item.interval || 5,
-          ssl_enabled: item.ssl_enabled !== false,
-          domain_enabled: item.domain_enabled !== false,
-          notification_email: item.notification_email || '',
-          status: 'PENDING',
-          created_by: user?.id,
-        }));
-
-      if (!newMonitorsData.length) {
-        return errorResponse('All monitors already exist', 409);
+          reason: 'URL already exists with another monitor',
+        });
       }
 
-      const createdMonitors: Monitor[] = [];
-      for (const monitorData of newMonitorsData) {
-        const monitor = this.monitorRepo.create(monitorData);
-        const saved = await this.monitorRepo.save(monitor);
-        createdMonitors.push(saved);
-      }
+      // Instant Checks
+      const monitorsToCheck = [...inserted, ...updated];
 
       const checkedMonitors = await Promise.all(
-        createdMonitors.map((monitor) =>
+        monitorsToCheck.map((monitor) =>
           this.performInstantCheck(monitor, false),
         ),
       );
 
       return successResponse(
         {
-          inserted: checkedMonitors.length,
-          skipped: existingUrls.size,
+          inserted: inserted.length,
+          updated: updated.length,
+          skipped: skipped.length,
+          skipped_data: skipped,
           data: checkedMonitors,
         },
-        'Bulk upload completed with instant checks',
+        'Bulk upload completed successfully',
         201,
       );
     } catch (error) {
