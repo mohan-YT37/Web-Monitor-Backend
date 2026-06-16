@@ -28,8 +28,9 @@ export class UsersService {
     user?: any,
   ) {
     try {
-      const page = Number(query?.page) || 1;
-      const limit = Number(query?.limit) || 10;
+      const page = Number(query?.page ?? 0);
+      const limit = Number(query?.limit ?? -1);
+      const fetchAll = page <= 0 || limit <= 0;
 
       const qb = this.userRepo.createQueryBuilder('user');
 
@@ -116,7 +117,7 @@ export class UsersService {
       ]);
 
       // PAGINATION
-      if (limit !== -1) {
+      if (!fetchAll) {
         qb.skip((page - 1) * limit).take(limit);
       }
 

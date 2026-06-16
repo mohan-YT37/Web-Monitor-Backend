@@ -1,3 +1,4 @@
+// employee.entity.ts
 import {
   BeforeInsert,
   Column,
@@ -7,8 +8,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-
 import { v4 as uuidv4 } from 'uuid';
+import { Exclude, Transform } from 'class-transformer';
 
 @Entity('employees')
 export class Employee {
@@ -70,10 +71,10 @@ export class Employee {
   @Column({ type: 'varchar', length: 20, nullable: true })
   emergency_contact!: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', default: 0 })
   joining_salary!: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ type: 'decimal', default: 0 })
   current_salary!: number;
 
   @Column({ default: false })
@@ -101,8 +102,10 @@ export class Employee {
   @Column({ type: 'varchar', length: 100, unique: true })
   username!: string;
 
+  @Transform(({ value }) => (value === 'null' ? null : value))
+  @Exclude()
   @Column({ type: 'varchar', length: 255 })
-  password!: string;
+  password!: string | null;
 
   @Column({
     type: 'varchar',
@@ -111,7 +114,7 @@ export class Employee {
   role!: string;
 
   @Column({ type: 'text', nullable: true })
-  document!: string;
+  document!: string | null;
 
   @Column({ default: 1 })
   active!: number;

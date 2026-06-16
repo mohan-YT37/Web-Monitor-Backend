@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { EmployeeModule } from './employee/employee.module';
 import { ClientModule } from './client/client.module';
+import { PasswordManagerModule } from './password-manager/password-manager.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ClientModule } from './client/client.module';
     UsersModule,
     EmployeeModule,
     ClientModule,
+    PasswordManagerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

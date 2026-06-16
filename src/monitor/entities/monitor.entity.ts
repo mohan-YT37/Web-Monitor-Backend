@@ -24,6 +24,15 @@ export class Monitor {
     this.public_id = uuidv4().replace(/-/g, '').slice(0, 30);
   }
 
+  @Column({
+    type: 'int',
+    nullable: true,
+  })
+  client_id!: number | null;
+
+  @Column({ type: 'varchar', length: 100, default: '' })
+  client_name!: string;
+
   @Column({ type: 'varchar', length: 100, default: '' })
   website_name!: string;
 

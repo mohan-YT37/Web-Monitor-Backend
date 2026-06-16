@@ -3,4 +3,5 @@ export enum Action {
   create = 'create',
   edit = 'edit',
   delete = 'delete',
+  share = 'share',
 }

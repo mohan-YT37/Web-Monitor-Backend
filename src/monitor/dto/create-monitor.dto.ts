@@ -1,4 +1,3 @@
-
 import {
   IsString,
   IsBoolean,
@@ -10,6 +9,13 @@ import {
 import { Transform, Type } from 'class-transformer';
 
 export class CreateMonitorDto {
+  @IsOptional()
+  @IsNumber()
+  client_id!: number | null;
+
+  @IsString()
+  client_name!: string;
+
   @IsString()
   website_name!: string;
 
@@ -29,7 +35,7 @@ export class CreateMonitorDto {
   @IsNumber()
   @IsOptional()
   retry_count?: number = 2;
-  
+
   @Type(() => Boolean)
   @IsBoolean()
   @IsOptional()
@@ -46,7 +52,6 @@ export class CreateMonitorDto {
   paused?: boolean = false;
 
   @IsString()
-  @IsIn(['email', 'webhook', 'both'])
   @IsOptional()
   notification_type?: string = 'email';
 
