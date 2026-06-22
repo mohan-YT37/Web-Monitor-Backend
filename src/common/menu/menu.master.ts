@@ -1,4 +1,3 @@
-// menu.master.ts
 export const MENU_MASTER = {
   dashboard: {
     id: 1,
@@ -35,7 +34,6 @@ export const MENU_MASTER = {
         path: '/settings/client',
         icon: 'Building2',
       },
-
       {
         id: 42,
         key: 'employee',
@@ -43,12 +41,65 @@ export const MENU_MASTER = {
         path: '/settings/employee',
         icon: 'UserCog',
       },
+    ],
+  },
+  passwords: {
+    id: 5,
+    key: 'passwords',
+    label: 'Passwords',
+    path: '/passwords',
+    icon: 'RectangleEllipsis',
+    children: [
       {
-        id: 43,
+        id: 51,
         key: 'passwordmanager',
-        label: 'Password Magaer',
-        path: '/settings/password-manager',
+        label: 'Password Manager',
+        path: '/passwords/password-manager',
         icon: 'KeyRound',
+      },
+      {
+        id: 52,
+        key: 'logs',
+        label: 'Logs',
+        path: '/passwords/logs',
+        icon: 'Logs',
+      },
+    ],
+  },
+  masters: {
+    id: 6,
+    key: 'masters',
+    label: 'Masters',
+    path: '/masters',
+    icon: 'SquareAsterisk',
+    children: [
+      {
+        id: 61,
+        key: 'tags',
+        label: 'Tags',
+        path: '/masters/tags',
+        icon: 'Tags',
+      },
+      {
+        id: 62,
+        key: 'role',
+        label: 'Roles',
+        path: '/masters/roles',
+        icon: 'UserRoundKey',
+      },
+      {
+        id: 63,
+        key: 'department',
+        label: 'Department',
+        path: '/masters/department',
+        icon: 'Building2',
+      },
+      {
+        id: 64,
+        key: 'group',
+        label: 'Group',
+        path: '/masters/group',
+        icon: 'Boxes',
       },
     ],
   },

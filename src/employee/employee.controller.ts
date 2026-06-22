@@ -86,12 +86,6 @@ export class EmployeeController {
     return this.employeeService.getSorts();
   }
 
-  @Delete('bulk-delete')
-  bulkDelete(@Body() body: { public_ids: string[] }, @Req() req: Request) {
-    const user = req?.user as JwtUser;
-    return this.employeeService.bulkDelete(body.public_ids, user);
-  }
-
   @Get(':public_id')
   findOne(@Param('public_id') public_id: string, @Req() req: Request) {
     const user = req?.user as JwtUser;
@@ -123,6 +117,12 @@ export class EmployeeController {
     console.log('BODY =>', body);
     console.log('FILE =>', file);
     return this.employeeService.update(public_id, body, user);
+  }
+
+  @Delete('bulk-delete')
+  bulkDelete(@Body() body: { public_ids: string[] }, @Req() req: Request) {
+    const user = req?.user as JwtUser;
+    return this.employeeService.bulkDelete(body.public_ids, user);
   }
 
   @Delete(':public_id')

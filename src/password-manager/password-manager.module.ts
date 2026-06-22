@@ -9,11 +9,13 @@ import { ItemsController } from './items.controller';
 import { FoldersService } from './folders.service';
 import { ItemsService } from './items.service';
 import { MailModule } from '../mail/mail.module';
+import { LogsModule } from 'src/logs/logs.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Folder, Item, SharedResource, User]),
     MailModule,
+    LogsModule,
   ],
   controllers: [FoldersController, ItemsController],
   providers: [FoldersService, ItemsService],

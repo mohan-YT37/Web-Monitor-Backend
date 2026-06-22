@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export type ExpireOption = '1hour' | '24hours' | '1week' | '1month' | 'never';
+export type ExpireOption = 'never' | '1hour' | '24hours' | '1week' | '1month';
 export type PermissionType = 'view' | 'edit';
 
 export class SharedUserDto {
@@ -31,7 +31,7 @@ export class ShareResourceDto {
   @IsString()
   @IsNotEmpty({ message: 'Permission type is required' })
   @IsEnum(['view', 'edit'], { message: 'Permission must be view or edit' })
-  permission_type!: PermissionType; // Global permission (for public) or default
+  permission_type!: PermissionType;
 
   @IsString()
   @IsNotEmpty({ message: 'Visibility is required' })
@@ -40,24 +40,14 @@ export class ShareResourceDto {
   })
   visibility!: 'personal' | 'public';
 
-  /**
-   * For personal: per-user { id, permission } entries
-   * For public: empty array (global permission_type applies)
-   */
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SharedUserDto)
   @IsOptional()
   shared_with?: SharedUserDto[];
 
-  /**
-   * Expiry: '1hour' | '24hours' | '1week' | '1month' | 'never'
-   */
   @IsString()
   @IsOptional()
-  @IsEnum(['1hour', '24hours', '1week', '1month', 'never'], {
-    message: 'expires_in must be 1hour, 24hours, 1week, 1month, or never',
-  })
   expires_in?: ExpireOption;
 }
 

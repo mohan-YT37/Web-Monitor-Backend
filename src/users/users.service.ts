@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { Like, Repository } from 'typeorm';
+import { In, Like, Repository } from 'typeorm';
 import { CatchError } from '../common/response/catch-error.util';
 import {
   errorResponse,
@@ -265,5 +265,72 @@ export class UsersService {
       console.error(error);
       return CatchError(error);
     }
+  }
+
+  async bulkDelete(public_ids: string[], user: any) {
+    try {
+      const users = await this.userRepo.find({
+        where: {
+          public_id: In(public_ids),
+          created_by: user?.id,
+        },
+        select: ['id'],
+      });
+
+      if (!users.length) {
+        return errorResponse('No users found', 404);
+      }
+
+      const ids = users.map((u) => u.id);
+
+      await this.userRepo.update({ id: In(ids) }, { deleted_by: user?.id });
+
+      await this.userRepo.softDelete(ids);
+
+      return successResponse(
+        { deleted: ids.length },
+        'Users deleted successfully',
+        200,
+      );
+    } catch (error) {
+      return CatchError(error);
+    }
+  }
+
+  async getFilters() {
+    return successResponse(
+      [
+        { id: 1, value: '', label: 'All' },
+        { id: 2, value: 'ACTIVE', label: 'Active' },
+        { id: 3, value: 'INACTIVE', label: 'In-active' },
+      ],
+      'Filter options fetched successfully',
+      200,
+    );
+  }
+
+  async getSorts() {
+    return successResponse(
+      [
+        { id: 1, value: 'A_Z', label: 'A to Z' },
+        { id: 2, value: 'Z_A', label: 'Z to A' },
+        { id: 3, value: 'NEWEST', label: 'Newest First' },
+        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+      ],
+      'Sort options fetched successfully',
+      200,
+    );
+  }
+
+  async getRoles() {
+    return successResponse(
+      [
+        { id: 1, label: 'Super Admin', value: 'super_admin' },
+        { id: 2, label: 'Manager', value: 'manager' },
+        { id: 3, label: 'Employee', value: 'employee' },
+      ],
+      'User Role Fetced Successfully',
+      200,
+    );
   }
 }

@@ -1,3 +1,4 @@
+// dto/create-item.dto.ts
 import {
   IsString,
   IsOptional,
@@ -5,9 +6,9 @@ import {
   IsArray,
   IsNumber,
   ValidateNested,
-  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { FolderPermissionDto } from './create-folder.dto';
 
 class CustomField {
   @IsString()
@@ -25,7 +26,7 @@ export class CreateItemDto {
   name!: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Username should not be empty' })
+  @IsOptional()
   username!: string;
 
   @IsString()
@@ -53,4 +54,16 @@ export class CreateItemDto {
   @IsNumber()
   @IsNotEmpty({ message: 'Folder ID is required' })
   folder_id!: number;
+
+  // NEW: tags
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FolderPermissionDto)
+  @IsOptional()
+  permissions?: FolderPermissionDto[];
 }

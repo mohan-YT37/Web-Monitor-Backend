@@ -16,7 +16,6 @@ import { JwtUser } from '../auth/types/user.interface';
 import { Request } from 'express';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { successResponse } from 'src/common/response/response.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
@@ -41,15 +40,19 @@ export class UsersController {
     );
   }
 
-  @Get('roles')
-  async userRoles() {
-    const data = [
-      { id: 1, label: 'Super Admin', value: 'super_admin' },
-      { id: 2, label: 'Manager', value: 'Manager' },
-      { id: 3, label: 'Employee', value: 'employee' },
-    ];
+  @Get('filters')
+  getFilters() {
+    return this.usersService.getFilters();
+  }
 
-    return successResponse(data, 'User Role Fetced Successfully', 200);
+  @Get('sorts')
+  getSorts() {
+    return this.usersService.getSorts();
+  }
+
+  @Get('roles')
+  async getRoles() {
+    return this.usersService.getRoles();
   }
 
   @Get(':public_id')
@@ -75,6 +78,13 @@ export class UsersController {
     return this.usersService.update(public_id, body, user);
   }
 
+  @Delete('bulk-delete')
+  bulkDelete(@Body() body: { public_ids: string[] }, @Req() req: Request) {
+    const user = req?.user as JwtUser;
+    console.log('userBulkDelete', body?.public_ids);
+    return this.usersService.bulkDelete(body.public_ids, user);
+  }
+  
   @Delete(':public_id')
   async remove(@Req() req: Request, @Param('public_id') public_id: string) {
     const user = req?.user as JwtUser;

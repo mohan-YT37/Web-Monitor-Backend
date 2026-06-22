@@ -18,6 +18,7 @@ import { JwtUser } from 'src/auth/types/user.interface';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
 import { ShareResourceDto } from './dto/share-resource.dto';
+import { ShareWithUsersDto } from './dto/share-with-users.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('folders')
@@ -43,7 +44,12 @@ export class FoldersController {
     );
   }
 
-  @Post('create') 
+  @Get('expiredays')
+  async expireDays() {
+    return this.foldersService.expireDays();
+  }
+
+  @Post('create')
   async create(@Req() req: Request, @Body() body: CreateFolderDto) {
     const user = req?.user as JwtUser;
     return this.foldersService.create(body, user);
@@ -63,6 +69,16 @@ export class FoldersController {
   ) {
     const user = req?.user as JwtUser;
     return this.foldersService.update(public_id, body, user);
+  }
+
+  @Post(':public_id/share-users')
+  async shareWithUsers(
+    @Req() req: Request,
+    @Param('public_id') public_id: string,
+    @Body() dto: ShareWithUsersDto,
+  ) {
+    const user = req?.user as JwtUser;
+    return this.foldersService.shareWithUsers(public_id, dto, user);
   }
 
   @Delete(':public_id')

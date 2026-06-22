@@ -46,6 +46,16 @@ export class ClientController {
     );
   }
 
+  @Get('filters')
+  getFilters() {
+    return this.clientService.getFilters();
+  }
+
+  @Get('sorts')
+  getSorts() {
+    return this.clientService.getSorts();
+  }
+
   @Get(':public_id')
   findOne(@Param('public_id') public_id: string, @Req() req?: Request) {
     const user = req?.user as JwtUser;
@@ -60,6 +70,12 @@ export class ClientController {
   ) {
     const user = req?.user as JwtUser;
     return this.clientService.update(public_id, updateClientDto, user);
+  }
+
+  @Delete('bulk-delete')
+  bulkDelete(@Body() body: { public_ids: string[] }, @Req() req: Request) {
+    const user = req?.user as JwtUser;
+    return this.clientService.bulkDelete(body.public_ids, user);
   }
 
   @Delete(':public_id')

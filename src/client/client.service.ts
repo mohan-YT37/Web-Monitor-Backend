@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, Repository } from 'typeorm';
+import { In, Like, Repository } from 'typeorm';
 
 import { Client } from './entities/client.entity';
 
@@ -276,5 +276,66 @@ export class ClientService {
       console.error(error);
       return CatchError(error);
     }
+  }
+
+  async bulkDelete(public_ids: string[], user: any) {
+    try {
+      if (!public_ids?.length) {
+        return errorResponse('No client IDs provided', 400);
+      }
+
+      const clients = await this.clientRepo.find({
+        where: {
+          public_id: In(public_ids),
+          created_by: user?.id,
+        },
+        select: ['id'],
+      });
+
+      if (!clients.length) {
+        return errorResponse('No clients found', 404);
+      }
+
+      const ids = clients.map((c) => c.id);
+
+      await this.clientRepo.update({ id: In(ids) }, { deleted_by: user?.id });
+
+      await this.clientRepo.softDelete(ids);
+
+      return successResponse(
+        { deleted: ids.length },
+        'Clients deleted successfully',
+        200,
+      );
+    } catch (error) {
+      return CatchError(error);
+    }
+  }
+
+  // FILTERS
+  async getFilters() {
+    return successResponse(
+      [
+        { id: 1, value: '', label: 'All' },
+        { id: 2, value: 'ACTIVE', label: 'Active' },
+        { id: 3, value: 'INACTIVE', label: 'In-active' },
+      ],
+      'Filter options fetched successfully',
+      200,
+    );
+  }
+
+  // SORTS
+  async getSorts() {
+    return successResponse(
+      [
+        { id: 1, value: 'A_Z', label: 'A to Z' },
+        { id: 2, value: 'Z_A', label: 'Z to A' },
+        { id: 3, value: 'NEWEST', label: 'Newest First' },
+        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+      ],
+      'Sort options fetched successfully',
+      200,
+    );
   }
 }

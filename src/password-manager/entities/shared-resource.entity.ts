@@ -71,7 +71,6 @@ export class SharedResource {
   @Column({ type: 'datetime', nullable: true })
   otp_expire_at!: Date | null;
 
-  /** Link expiry — null means never expires */
   @Column({ type: 'datetime', nullable: true })
   expires_at!: Date | null;
 

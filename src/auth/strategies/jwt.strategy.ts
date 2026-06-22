@@ -8,11 +8,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET!, // "!" -> Tells TypeScript that this value will not be null or undefined
+      secretOrKey: process.env.JWT_SECRET!, 
     });
   }
 
   async validate(payload: any) {
+    console.log("payload",payload)
     return {
       id: payload.id,
       email: payload.email,

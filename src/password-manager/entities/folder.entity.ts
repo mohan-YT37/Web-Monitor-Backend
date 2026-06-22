@@ -11,6 +11,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { SharedResource } from './shared-resource.entity';
 import { Item } from './item.entity';
+import { FolderPermissionEntry } from '../interfaces/folder-permission.interface';
 
 @Entity('folders')
 export class Folder {
@@ -27,17 +28,23 @@ export class Folder {
     }
   }
 
-  @Column({ type: 'varchar', length: 100 }) 
+  @Column({ type: 'varchar', length: 100 })
   name!: string;
 
   @Column({ type: 'text', nullable: true })
   description!: string;
 
   @Column({ type: 'json', nullable: true })
-  permissions!: number[];
+  permissions!: FolderPermissionEntry[];
 
   @Column({ default: 1 })
   active!: number;
+
+  @Column({ type: 'int', nullable: true })
+  shared_by!: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  shared_at!: Date | null;
 
   @OneToMany(() => Item, (item) => item.folder)
   items!: Item[];
@@ -62,4 +69,7 @@ export class Folder {
 
   @Column({ nullable: true })
   deleted_by!: number;
+
+  @Column('simple-array', { nullable: true })
+  deleted_by_users!: number[];
 }

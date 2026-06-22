@@ -1,3 +1,4 @@
+// entities/item.entity.ts
 import {
   Column,
   DeleteDateColumn,
@@ -13,6 +14,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { Folder } from './folder.entity';
 import { SharedResource } from './shared-resource.entity';
+import { FolderPermissionEntry } from '../interfaces/folder-permission.interface';
 
 @Entity('items')
 export class Item {
@@ -32,7 +34,7 @@ export class Item {
   @Column({ type: 'varchar', length: 100 })
   name!: string;
 
-  @Column({ type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100 , nullable : true })
   username!: string;
 
   @Column({ type: 'varchar', length: 100 })
@@ -47,6 +49,9 @@ export class Item {
   @Column({ type: 'json', nullable: true })
   custom_fields!: any[];
 
+  @Column({ type: 'json', nullable: true })
+  tags!: string[];
+
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
@@ -57,8 +62,17 @@ export class Item {
   @JoinColumn({ name: 'folder_id' })
   folder!: Folder;
 
+  @Column({ type: 'json', nullable: true })
+  permissions!: FolderPermissionEntry[];
+
+  @Column({ type: 'int', nullable: true })
+  shared_by!: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  shared_at!: Date | null;
+
   @OneToMany(() => SharedResource, (shared) => shared.item)
-  shared_resources!: SharedResource[]; 
+  shared_resources!: SharedResource[];
 
   @Column({ default: 1 })
   active!: number;
@@ -80,4 +94,7 @@ export class Item {
 
   @Column({ nullable: true })
   deleted_by!: number;
+
+  @Column('simple-array', { nullable: true })
+  deleted_by_users!: number[];
 }

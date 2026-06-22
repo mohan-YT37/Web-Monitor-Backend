@@ -4,7 +4,22 @@ import {
   IsNotEmpty,
   IsArray,
   IsNumber,
+  IsIn,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class FolderPermissionDto {
+  @IsNumber()
+  user_id!: number;
+
+  @IsString()
+  user_name!: string;
+
+  @IsString()
+  @IsIn(['view', 'edit'])
+  access!: 'view' | 'edit';
+}
 
 export class CreateFolderDto {
   @IsString()
@@ -16,7 +31,8 @@ export class CreateFolderDto {
   description?: string;
 
   @IsArray()
-  @IsNumber({}, { each: true })
+  @ValidateNested({ each: true })
+  @Type(() => FolderPermissionDto)
   @IsOptional()
-  permissions?: number[]; // User IDs who can access this folder
+  permissions?: FolderPermissionDto[];
 }

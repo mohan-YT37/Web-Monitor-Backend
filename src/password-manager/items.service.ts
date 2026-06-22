@@ -1,3 +1,4 @@
+// items.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -25,6 +26,9 @@ import {
   CheckShareEmailDto,
   ExpireOption,
 } from './dto/share-resource.dto';
+import { ShareWithUsersDto } from './dto/share-with-users.dto';
+import { FolderPermissionEntry } from './interfaces/folder-permission.interface';
+import { LogsService } from 'src/logs/logs.service';
 
 function computeExpiresAt(expires_in?: ExpireOption): Date | null {
   if (!expires_in || expires_in === 'never') return null;
@@ -44,8 +48,26 @@ function computeExpiresAt(expires_in?: ExpireOption): Date | null {
 }
 
 function isExpired(sharedResource: SharedResource): boolean {
-  if (!sharedResource.expires_at) return false;
+  if (!sharedResource.expires_at) {
+    return false;
+  }
   return new Date() > new Date(sharedResource.expires_at);
+}
+
+function mergePermissions(
+  folderPermissions: FolderPermissionEntry[] = [],
+  explicitEntries: FolderPermissionEntry[] = [],
+): FolderPermissionEntry[] {
+  const merged = [...folderPermissions];
+  for (const entry of explicitEntries) {
+    const idx = merged.findIndex((p) => p.user_id === entry.user_id);
+    if (idx >= 0) {
+      merged[idx] = { ...merged[idx], access: entry.access };
+    } else {
+      merged.push(entry);
+    }
+  }
+  return merged;
 }
 
 @Injectable()
@@ -63,6 +85,7 @@ export class ItemsService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     private mailService: MailService,
+    private logsService: LogsService,
   ) {
     const keyFromEnv = process.env.ENCRYPTION_KEY;
     if (!keyFromEnv)
@@ -78,8 +101,6 @@ export class ItemsService {
       );
     }
   }
-
-  //  Helpers
 
   private encrypt(text: string): string {
     const iv = crypto.randomBytes(this.IV_LENGTH);
@@ -107,7 +128,27 @@ export class ItemsService {
     return decrypted.toString('utf8');
   }
 
-  /** Looks up a human-readable name for a shared resource (folder or item). */
+  private safeDecrypt(text: string): string {
+    if (!text) return text;
+    try {
+      return this.decrypt(text);
+    } catch {
+      return text;
+    }
+  }
+
+  private getItemAccess(
+    item: Item,
+    userId: number,
+  ): 'owner' | 'edit' | 'view' | null {
+    if (item.folder?.created_by === userId) return 'owner';
+    const list: FolderPermissionEntry[] = item.permissions?.length
+      ? item.permissions
+      : item.folder?.permissions || [];
+    const entry = list.find((p) => p.user_id === userId);
+    return entry ? entry.access : null;
+  }
+
   private async resolveResourceName(
     sharedResource: SharedResource,
   ): Promise<string> {
@@ -125,7 +166,6 @@ export class ItemsService {
     return item?.name || `Item #${sharedResource.item_id}`;
   }
 
-  /** Looks up the display name of the user who created a share. */
   private async resolveOwnerName(ownerId: number): Promise<string> {
     const owner = await this.userRepo.findOne({
       where: { id: ownerId },
@@ -141,14 +181,10 @@ export class ItemsService {
     actorRole: string;
     itemName: string;
     itemPublicId: string;
-    // optional item detail fields for richer audit
     username?: string;
     email?: string;
     website?: string;
   }) {
-    // Super admins never trigger an audit email for their own actions —
-    // the recipient of these emails IS the super admin, so an admin acting
-    // on their own behalf has nothing to be notified about.
     if (context.actorRole === 'super_admin') return;
 
     try {
@@ -202,8 +238,13 @@ export class ItemsService {
       }
 
       qb.andWhere(
-        "(folder.created_by = :userId OR JSON_CONTAINS(folder.permissions, :userPermission, '$'))",
-        { userId: user?.id, userPermission: JSON.stringify(user?.id) },
+        "(folder.created_by = :userId OR JSON_CONTAINS(JSON_EXTRACT(item.permissions, '$[*].user_id'), CAST(:userId AS JSON)))",
+        { userId: user?.id },
+      );
+
+      qb.andWhere(
+        '(item.deleted_by_users IS NULL OR NOT FIND_IN_SET(:hideUserId, item.deleted_by_users)) AND (folder.deleted_by_users IS NULL OR NOT FIND_IN_SET(:hideUserId, folder.deleted_by_users))',
+        { hideUserId: user?.id },
       );
 
       if (query?.search) {
@@ -248,10 +289,17 @@ export class ItemsService {
       }
 
       const [items, total] = await qb.getManyAndCount();
-      const decryptedItems = items.map((item) => ({
-        ...item,
-        password: this.decrypt(item.password),
-      }));
+
+      const decryptedItems = items.map((item) => {
+        const access = this.getItemAccess(item, user?.id);
+        return {
+          ...item,
+          username: this.safeDecrypt(item.username),
+          password: this.decrypt(item.password),
+          access,
+          permissions: access === 'owner' ? item.permissions : undefined,
+        };
+      });
 
       if (!decryptedItems || decryptedItems.length === 0) {
         return successResponse([], 'No Items Found', 200);
@@ -288,14 +336,32 @@ export class ItemsService {
 
       if (!item) return errorResponse('Item Not Found', 400);
 
-      const hasAccess =
-        item.folder.created_by === user?.id ||
-        (item.folder.permissions && item.folder.permissions.includes(user?.id));
+      const hiddenForUser =
+        (item.deleted_by_users || []).includes(user?.id) ||
+        (item.folder?.deleted_by_users || []).includes(user?.id);
+      if (hiddenForUser) return errorResponse('Item Not Found', 400);
 
-      if (!hasAccess) return permissionDenied('view', 'items');
+      const access = this.getItemAccess(item, user?.id);
+      if (!access) return permissionDenied('view', 'items');
+
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'viewed',
+        resource_type: 'item',
+        resource_id: item.id,
+        resource_public_id: item.public_id,
+        resource_name: item.name,
+      });
 
       return successResponse(
-        { ...item, password: this.decrypt(item.password) },
+        {
+          ...item,
+          username: this.safeDecrypt(item.username),
+          password: this.decrypt(item.password),
+          access,
+          permissions: access === 'owner' ? item.permissions : undefined,
+        },
         'Item Found',
         200,
       );
@@ -311,22 +377,64 @@ export class ItemsService {
         return permissionDenied('create', 'items');
       }
 
+      const folder = await this.folderRepo.findOne({
+        where: { id: body.folder_id },
+      });
+      if (!folder) return errorResponse('Folder Not Found', 400);
+
+      const folderAccess =
+        folder.created_by === user?.id
+          ? 'owner'
+          : (folder.permissions || []).find((p) => p.user_id === user?.id)
+              ?.access || null;
+
+      if (folderAccess !== 'owner' && folderAccess !== 'edit') {
+        return permissionDenied('create', 'items');
+      }
+
+      const plainUsername = body.username.trim();
+      const hasExplicitPermissions =
+        Array.isArray(body.permissions) && body.permissions.length > 0;
+
+      const itemPermissions = hasExplicitPermissions
+        ? mergePermissions(folder.permissions || [], body.permissions)
+        : folder.permissions || [];
+
       const newItem = this.itemRepo.create({
         name: body.name.trim(),
-        username: body.username.trim(),
+        username: this.encrypt(plainUsername),
         email: body.email.trim(),
         website: body.website?.trim() || null,
         password: this.encrypt(body.password),
         custom_fields: body.custom_fields || [],
+        tags: body.tags || [],
         notes: body.notes?.trim() || null,
         folder_id: body.folder_id,
+        permissions: itemPermissions,
+        shared_by: hasExplicitPermissions ? user?.id : null,
+        shared_at: hasExplicitPermissions ? new Date() : null,
         active: 1,
         created_by: user?.id,
       });
 
       const savedItem = await this.itemRepo.save(newItem);
+
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'created',
+        resource_type: 'item',
+        resource_id: savedItem.id,
+        resource_public_id: savedItem.public_id,
+        resource_name: savedItem.name,
+      });
+
       return successResponse(
-        { ...savedItem, password: body.password },
+        {
+          ...savedItem,
+          username: plainUsername,
+          password: body.password,
+        },
         'Item Created Successfully',
         201,
       );
@@ -345,28 +453,85 @@ export class ItemsService {
 
       if (!item) return errorResponse('Item Not Found', 400);
 
-      const hasEditAccess =
-        item.folder.created_by === user?.id ||
-        (item.folder.permissions && item.folder.permissions.includes(user?.id));
-
-      if (!hasEditAccess) return permissionDenied('edit', 'items');
+      const access = this.getItemAccess(item, user?.id);
+      if (access !== 'owner' && access !== 'edit') {
+        return permissionDenied('edit', 'items');
+      }
 
       if (data.name) item.name = data.name.trim();
-      if (data.username) item.username = data.username.trim();
+      if (data.username) item.username = this.encrypt(data.username.trim());
       if (data.email) item.email = data.email.trim();
       if (data.website !== undefined)
         item.website = data.website?.trim() || null;
       if (data.custom_fields) item.custom_fields = data.custom_fields;
+      if (data.tags) item.tags = data.tags;
       if (data.notes !== undefined) item.notes = data.notes?.trim() || null;
-      if (data.folder_id) item.folder_id = data.folder_id;
       if (data.password) item.password = this.encrypt(data.password);
 
+      if (data.folder_id && data.folder_id !== item.folder_id) {
+        const previousFolderName = item.folder?.name;
+        const targetFolder = await this.folderRepo.findOne({
+          where: { id: data.folder_id },
+        });
+        if (!targetFolder) return errorResponse('Target Folder Not Found', 400);
+
+        const targetAccess =
+          targetFolder.created_by === user?.id
+            ? 'owner'
+            : (targetFolder.permissions || []).find(
+                (p) => p.user_id === user?.id,
+              )?.access || null;
+
+        if (targetAccess !== 'owner' && targetAccess !== 'edit') {
+          return permissionDenied('move', 'items');
+        }
+
+        item.folder = targetFolder;
+        item.folder_id = targetFolder.id;
+
+        const explicitOnly = (item.permissions || []).filter(
+          (p) =>
+            !(targetFolder.permissions || []).some(
+              (fp) => fp.user_id === p.user_id,
+            ) &&
+            !(item.folder?.permissions || []).some(
+              (fp) => fp.user_id === p.user_id,
+            ),
+        );
+        item.permissions = mergePermissions(
+          targetFolder.permissions || [],
+          explicitOnly,
+        );
+
+        await this.logsService.record({
+          user_id: user?.id,
+          user_email: user?.email,
+          action: 'moved',
+          resource_type: 'item',
+          resource_id: item.id,
+          resource_public_id: item.public_id,
+          resource_name: item.name,
+          metadata: { from: previousFolderName, to: targetFolder.name },
+        });
+      }
+
+      if (access === 'owner' && data.permissions) {
+        item.permissions = mergePermissions(
+          item.folder?.permissions || [],
+          data.permissions,
+        );
+        item.shared_by = user?.id;
+        item.shared_at = new Date();
+      }
+
       item.updated_by = user?.id;
+
       const savedItem = await this.itemRepo.save(item);
 
-      // Audit mail: super admins are skipped automatically inside
-      // sendAuditIfNeeded; every other role's edit notifies the super admin
-      // with the latest item details and who/when performed the edit.
+      const plainUsername = data.username
+        ? data.username.trim()
+        : this.safeDecrypt(savedItem.username);
+
       await this.sendAuditIfNeeded({
         action: 'edited',
         actorEmail: user?.email,
@@ -374,23 +539,102 @@ export class ItemsService {
         actorRole: user?.role,
         itemName: savedItem.name,
         itemPublicId: savedItem.public_id,
-        username: savedItem.username,
+        username: plainUsername,
         email: savedItem.email,
         website: savedItem.website || undefined,
+      });
+
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'updated',
+        resource_type: 'item',
+        resource_id: savedItem.id,
+        resource_public_id: savedItem.public_id,
+        resource_name: savedItem.name,
       });
 
       return successResponse(
         {
           ...savedItem,
+          username: plainUsername,
           password: data.password
             ? data.password
             : this.decrypt(savedItem.password),
+          permissions: access === 'owner' ? savedItem.permissions : undefined,
         },
         'Item Updated Successfully',
         200,
       );
     } catch (error: unknown) {
       console.error(error instanceof Error ? error.message : 'Unknown error');
+      return CatchError(error);
+    }
+  }
+
+  async shareWithUsers(public_id: string, dto: ShareWithUsersDto, user: any) {
+    try {
+      const item = await this.itemRepo.findOne({
+        where: { public_id },
+        relations: ['folder'],
+      });
+      if (!item) return errorResponse('Item Not Found', 400);
+
+      const access = this.getItemAccess(item, user?.id);
+      if (access !== 'owner' && access !== 'edit') {
+        return permissionDenied('share', 'items');
+      }
+
+      const existing = item.permissions || [];
+      const merged = [...existing];
+
+      for (const entry of dto.users) {
+        const idx = merged.findIndex((p) => p.user_id === entry.user_id);
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], access: entry.access };
+        } else {
+          merged.push(entry);
+        }
+      }
+
+      item.permissions = merged;
+      item.shared_by = user?.id;
+      item.shared_at = new Date();
+
+      if (item.deleted_by_users?.length) {
+        const reSharedIds = new Set(dto.users.map((u) => u.user_id));
+        item.deleted_by_users = item.deleted_by_users.filter(
+          (id) => !reSharedIds.has(id),
+        );
+      }
+
+      const savedItem = await this.itemRepo.save(item);
+
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'shared_users',
+        resource_type: 'item',
+        resource_id: savedItem.id,
+        resource_public_id: savedItem.public_id,
+        resource_name: savedItem.name,
+        metadata: {
+          with: dto.users.map((u) => ({
+            user_id: u.user_id,
+            access: u.access,
+          })),
+        },
+      });
+
+      return successResponse(
+        {
+          ...savedItem,
+          permissions: access === 'owner' ? savedItem.permissions : undefined,
+        },
+        'Item shared successfully',
+        200,
+      );
+    } catch (error) {
       return CatchError(error);
     }
   }
@@ -404,15 +648,11 @@ export class ItemsService {
 
       if (!item) return errorResponse('Item Not Found', 400);
 
-      const hasAccess =
-        item.folder.created_by === user?.id ||
-        (item.folder.permissions && item.folder.permissions.includes(user?.id));
+      const access = this.getItemAccess(item, user?.id);
+      if (!access) return permissionDenied('copy', 'items');
 
-      if (!hasAccess) return permissionDenied('copy', 'items');
+      const plainUsername = this.safeDecrypt(item.username);
 
-      // Audit mail: super admins are skipped automatically inside
-      // sendAuditIfNeeded; every other role's copy notifies the super admin
-      // with the item's details and who/when performed the copy.
       await this.sendAuditIfNeeded({
         action: 'copied',
         actorEmail: user?.email,
@@ -420,13 +660,28 @@ export class ItemsService {
         actorRole: user?.role,
         itemName: item.name,
         itemPublicId: item.public_id,
-        username: item.username,
+        username: plainUsername,
         email: item.email,
         website: item.website || undefined,
       });
 
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'copied',
+        resource_type: 'item',
+        resource_id: item.id,
+        resource_public_id: item.public_id,
+        resource_name: item.name,
+      });
+
       return successResponse(
-        { ...item, password: this.decrypt(item.password) },
+        {
+          ...item,
+          username: plainUsername,
+          password: this.decrypt(item.password),
+          permissions: access === 'owner' ? item.permissions : undefined,
+        },
         'Item data fetched for copy',
         200,
       );
@@ -445,16 +700,53 @@ export class ItemsService {
 
       if (!item) return errorResponse('Item Not Found', 400);
 
+      const access = this.getItemAccess(item, user?.id);
+      const hasRoleDelete = hasPermission(user?.role, 'items', 'delete');
+
       if (
-        !hasPermission(user?.role, 'items', 'delete') &&
-        item.folder.created_by !== user?.id
+        !hasRoleDelete &&
+        access !== 'owner' &&
+        access !== 'edit' &&
+        access !== 'view'
       ) {
         return permissionDenied('delete', 'items');
+      }
+
+      if (access === 'edit' || access === 'view') {
+        const hiddenFor = new Set(item.deleted_by_users || []);
+        hiddenFor.add(user?.id);
+        item.deleted_by_users = Array.from(hiddenFor);
+        await this.itemRepo.save(item);
+
+        await this.logsService.record({
+          // NEW
+          user_id: user?.id,
+          user_email: user?.email,
+          action: 'deleted',
+          resource_type: 'item',
+          resource_id: item.id,
+          resource_public_id: item.public_id,
+          resource_name: item.name,
+          metadata: { scope: 'self_only' },
+        });
+
+        return successResponse(null, 'Item removed from your account', 204);
       }
 
       item.deleted_by = user?.id;
       await this.itemRepo.save(item);
       await this.itemRepo.softDelete(item.id);
+
+      await this.logsService.record({
+        // NEW
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'deleted',
+        resource_type: 'item',
+        resource_id: item.id,
+        resource_public_id: item.public_id,
+        resource_name: item.name,
+      });
 
       return successResponse(null, 'Item deleted successfully', 204);
     } catch (error: unknown) {
@@ -476,19 +768,86 @@ export class ItemsService {
 
       if (items.length === 0) return errorResponse('No items found', 404);
 
-      const hasAccess = items.every(
-        (item) =>
-          hasPermission(user?.role, 'items', 'delete') ||
-          item.folder.created_by === user?.id,
+      const hasRoleDelete = hasPermission(user?.role, 'items', 'delete');
+
+      const itemsWithAccess = items.map((item) => ({
+        item,
+        access: this.getItemAccess(item, user?.id),
+      }));
+
+      const hasAccess = itemsWithAccess.every(
+        ({ access }) =>
+          hasRoleDelete ||
+          access === 'owner' ||
+          access === 'edit' ||
+          access === 'view',
       );
 
       if (!hasAccess) return permissionDenied('delete', 'items');
 
-      await this.itemRepo.softDelete({ public_id: In(public_ids) });
-      await this.itemRepo.update(
-        { public_id: In(public_ids) },
-        { deleted_by: user?.id },
-      );
+      const hardDeleteIds: string[] = [];
+      const hideOnlyItems: Item[] = [];
+
+      for (const { item, access } of itemsWithAccess) {
+        if (access === 'edit' || access === 'view') {
+          hideOnlyItems.push(item);
+        } else {
+          hardDeleteIds.push(item.public_id);
+        }
+      }
+
+      if (hideOnlyItems.length > 0) {
+        await Promise.all(
+          hideOnlyItems.map((item) => {
+            const hiddenFor = new Set(item.deleted_by_users || []);
+            hiddenFor.add(user?.id);
+            item.deleted_by_users = Array.from(hiddenFor);
+            return this.itemRepo.save(item);
+          }),
+        );
+        await Promise.all(
+          // NEW
+          hideOnlyItems.map((item) =>
+            this.logsService.record({
+              user_id: user?.id,
+              user_email: user?.email,
+              action: 'deleted',
+              resource_type: 'item',
+              resource_id: item.id,
+              resource_public_id: item.public_id,
+              resource_name: item.name,
+              metadata: { scope: 'self_only', bulk: true },
+            }),
+          ),
+        );
+      }
+
+      if (hardDeleteIds.length > 0) {
+        await this.itemRepo.softDelete({ public_id: In(hardDeleteIds) });
+        await this.itemRepo.update(
+          { public_id: In(hardDeleteIds) },
+          { deleted_by: user?.id },
+        );
+        const hardDeleted = items.filter(
+          (
+            i, // NEW
+          ) => hardDeleteIds.includes(i.public_id),
+        );
+        await Promise.all(
+          hardDeleted.map((item) =>
+            this.logsService.record({
+              user_id: user?.id,
+              user_email: user?.email,
+              action: 'deleted',
+              resource_type: 'item',
+              resource_id: item.id,
+              resource_public_id: item.public_id,
+              resource_name: item.name,
+              metadata: { bulk: true },
+            }),
+          ),
+        );
+      }
 
       return successResponse(
         { deleted_count: items.length },
@@ -500,8 +859,6 @@ export class ItemsService {
       return CatchError(error);
     }
   }
-
-  // ── Share flow ─────────────────────────────────────────────────────────────
 
   async shareResource(
     resourcePublicId: string,
@@ -548,9 +905,6 @@ export class ItemsService {
             }))
           : [];
 
-      // No OTP is generated here anymore. Every access attempt — public or
-      // personal — gets a fresh OTP generated and emailed at the email-gate
-      // step (checkShareEmail), scoped to the person checking in right then.
       const newShare = this.sharedResourceRepo.create({
         resource_type: shareDto.resource_type,
         folder_id:
@@ -560,10 +914,6 @@ export class ItemsService {
         visibility: shareDto.visibility,
         shared_with: sharedWithPayload,
         share_token: shareToken,
-        // otp / otp_expire_at intentionally omitted — no OTP exists yet at
-        // creation time, it's generated lazily in checkShareEmail(). Passing
-        // `null` fails type-checking since the entity declares these as
-        // `string | undefined`, not nullable; omitting leaves them undefined.
         is_otp_verified: false,
         expires_at: expiresAt ?? undefined,
         created_by: user?.id,
@@ -571,6 +921,21 @@ export class ItemsService {
 
       await this.sharedResourceRepo.save(newShare);
       const shareLink = `${process.env.APP_URL}/share/${shareToken}`;
+
+      await this.logsService.record({
+        user_id: user?.id,
+        user_email: user?.email,
+        action: 'shared_link',
+        resource_type: shareDto.resource_type,
+        resource_id: resource.id,
+        resource_public_id: resource.public_id,
+        resource_name: resource.name,
+        metadata: {
+          visibility: shareDto.visibility,
+          permission_type: shareDto.permission_type,
+          expires_in: shareDto.expires_in,
+        },
+      });
 
       return successResponse(
         {
@@ -586,12 +951,6 @@ export class ItemsService {
     }
   }
 
-  /**
-   * Email gate — step 0 of access. Validates the email against the right
-   * scope (any registered user for public links, only the chosen recipients
-   * for personal links), then issues a fresh OTP and emails it to that
-   * person. Always requires OTP, for both visibilities.
-   */
   async checkShareEmail(dto: CheckShareEmailDto) {
     try {
       const sharedResource = await this.sharedResourceRepo.findOne({
@@ -610,7 +969,6 @@ export class ItemsService {
       let permission: string;
 
       if (sharedResource.visibility === 'public') {
-        // Public: validated against any registered user in the system.
         if (!user) {
           return errorResponse(
             'Your email is not registered in this system',
@@ -619,8 +977,6 @@ export class ItemsService {
         }
         permission = sharedResource.permission_type;
       } else {
-        // Personal: validated ONLY against the specifically shared
-        // recipients — never against the full user list.
         const sharedUsers = sharedResource.shared_with || [];
         if (sharedUsers.length === 0) {
           return errorResponse(
@@ -644,7 +1000,6 @@ export class ItemsService {
         permission = userEntry.permission;
       }
 
-      // Generate and email a fresh OTP for this access attempt.
       const otp = Math.floor(1000 + Math.random() * 9000).toString();
       const otpExpiry = new Date();
       otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
@@ -707,7 +1062,6 @@ export class ItemsService {
       sharedResource.is_otp_verified = true;
       await this.sharedResourceRepo.save(sharedResource);
 
-      // ── Fetch resource
       let resource: any;
       let resourceName = '';
 
@@ -720,14 +1074,13 @@ export class ItemsService {
         resource = await this.itemRepo.findOne({
           where: { id: sharedResource.item_id },
         });
+        if (resource?.username)
+          resource.username = this.safeDecrypt(resource.username);
         if (resource?.password)
           resource.password = this.decrypt(resource.password);
         resourceName = resource?.name || `Item #${sharedResource.item_id}`;
       }
 
-      // Audit the access itself for personal shares (matches prior
-      // behavior); public access auditing happens the same way since both
-      // now flow through this single verify step.
       const sharedWithIds = (sharedResource.shared_with || []).map((u) => u.id);
 
       if (sharedWithIds.length > 0) {
@@ -789,6 +1142,8 @@ export class ItemsService {
           where: { id: sharedResource.item_id },
           relations: ['folder'],
         });
+        if (resource?.username)
+          resource.username = this.safeDecrypt(resource.username);
         if (resource?.password)
           resource.password = this.decrypt(resource.password);
       }
@@ -838,6 +1193,7 @@ export class ItemsService {
           'password',
           'notes',
           'custom_fields',
+          'tags',
           'active',
         ],
       });
@@ -846,6 +1202,7 @@ export class ItemsService {
         {
           data: items.map((item) => ({
             ...item,
+            username: this.safeDecrypt(item.username),
             password: this.decrypt(item.password),
           })),
           permission_type: sharedResource.permission_type,
@@ -855,6 +1212,45 @@ export class ItemsService {
         'Folder items fetched successfully',
         200,
       );
+    } catch (error) {
+      return CatchError(error);
+    }
+  }
+
+  async getFilters() {
+    return successResponse(
+      [
+        { id: 1, value: '', label: 'All' },
+        { id: 2, value: 'ACTIVE', label: 'Active' },
+        { id: 3, value: 'INACTIVE', label: 'In-active' },
+      ],
+      'Filter options fetched successfully',
+      200,
+    );
+  }
+
+  async getSorts() {
+    return successResponse(
+      [
+        { id: 1, value: 'A_Z', label: 'A to Z' },
+        { id: 2, value: 'Z_A', label: 'Z to A' },
+        { id: 3, value: 'NEWEST', label: 'Newest First' },
+        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+      ],
+      'Sort options fetched successfully',
+      200,
+    );
+  }
+
+  async getTags() {
+    try {
+      const items = await this.itemRepo.find({ select: ['tags'] });
+      const tagSet = new Set<string>();
+      items.forEach((i) => (i.tags || []).forEach((t) => tagSet.add(t)));
+      const tags = Array.from(tagSet)
+        .sort()
+        .map((t, idx) => ({ id: idx + 1, value: t, label: t }));
+      return successResponse(tags, 'Tags fetched successfully', 200);
     } catch (error) {
       return CatchError(error);
     }

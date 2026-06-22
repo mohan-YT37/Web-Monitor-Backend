@@ -10,6 +10,11 @@ import { UsersModule } from './users/users.module';
 import { EmployeeModule } from './employee/employee.module';
 import { ClientModule } from './client/client.module';
 import { PasswordManagerModule } from './password-manager/password-manager.module';
+import { TagsModule } from './tags/tags.module';
+import { RolesModule } from './roles/roles.module';
+import { DepartmentsModule } from './departments/departments.module';
+import { LogsModule } from './logs/logs.module';
+import { GroupModule } from './group/group.module';
 
 @Module({
   imports: [
@@ -34,6 +39,11 @@ import { PasswordManagerModule } from './password-manager/password-manager.modul
     EmployeeModule,
     ClientModule,
     PasswordManagerModule,
+    TagsModule,
+    RolesModule,
+    DepartmentsModule,
+    LogsModule,
+    GroupModule,
   ],
   controllers: [AppController],
   providers: [AppService],

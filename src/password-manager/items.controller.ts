@@ -1,3 +1,4 @@
+// items.controller.ts
 import {
   Body,
   Controller,
@@ -21,6 +22,7 @@ import {
   VerifyShareOtpDto,
   CheckShareEmailDto,
 } from './dto/share-resource.dto';
+import { ShareWithUsersDto } from './dto/share-with-users.dto';
 
 @Controller('items')
 export class ItemsController {
@@ -44,6 +46,22 @@ export class ItemsController {
     );
   }
 
+  @Get('filters')
+  getFilters() {
+    return this.itemsService.getFilters();
+  }
+
+  @Get('sorts')
+  getSorts() {
+    return this.itemsService.getSorts();
+  }
+
+  // NEW: tag options for the items multi-select
+  @Get('tags')
+  getTags() {
+    return this.itemsService.getTags();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('create')
   async create(@Req() req: Request, @Body() body: CreateItemDto) {
@@ -51,11 +69,9 @@ export class ItemsController {
     return this.itemsService.create(body, user);
   }
 
-  // ── Public share endpoints (no auth guard) ────────────────────────────────
-
   /** Step 0: Email gate — validate email before showing OTP or content */
   @Post('share/check-email')
-  async checkShareEmail( @Body() dto: CheckShareEmailDto) {
+  async checkShareEmail(@Body() dto: CheckShareEmailDto) {
     return this.itemsService.checkShareEmail(dto);
   }
 
@@ -77,7 +93,7 @@ export class ItemsController {
     return this.itemsService.accessSharedFolderItems(token);
   }
 
-  // ── Authenticated endpoints ───────────────────────────────────────────────
+  //  Authenticated endpoints
 
   @UseGuards(JwtAuthGuard)
   @Delete('bulk/delete')
@@ -123,6 +139,17 @@ export class ItemsController {
   ) {
     const user = req?.user as JwtUser;
     return this.itemsService.shareResource(public_id, shareDto, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':public_id/share-users')
+  async shareWithUsers(
+    @Req() req: Request,
+    @Param('public_id') public_id: string,
+    @Body() dto: ShareWithUsersDto,
+  ) {
+    const user = req?.user as JwtUser;
+    return this.itemsService.shareWithUsers(public_id, dto, user);
   }
 
   @UseGuards(JwtAuthGuard)
