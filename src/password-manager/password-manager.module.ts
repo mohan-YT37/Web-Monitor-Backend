@@ -9,7 +9,7 @@ import { ItemsController } from './items.controller';
 import { FoldersService } from './folders.service';
 import { ItemsService } from './items.service';
 import { MailModule } from '../mail/mail.module';
-import { LogsModule } from '../logs/password-logs.module';
+import { LogsModule } from '../password-logs/password-logs.module';
 
 @Module({
   imports: [
