@@ -51,7 +51,7 @@ export class SharedResource {
   item!: Item;
 
   @Column({ type: 'enum', enum: ['view', 'edit'] })
-  permission_type!: 'view' | 'edit'; // Global / public default
+  permission_type!: 'view' | 'edit'; 
 
   @Column({ type: 'enum', enum: ['personal', 'public'] })
   visibility!: 'personal' | 'public';

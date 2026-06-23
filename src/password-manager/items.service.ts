@@ -738,7 +738,6 @@ export class ItemsService {
       await this.itemRepo.softDelete(item.id);
 
       await this.logsService.record({
-        // NEW
         user_id: user?.id,
         user_email: user?.email,
         action: 'deleted',
@@ -806,7 +805,6 @@ export class ItemsService {
           }),
         );
         await Promise.all(
-          // NEW
           hideOnlyItems.map((item) =>
             this.logsService.record({
               user_id: user?.id,

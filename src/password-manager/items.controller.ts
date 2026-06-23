@@ -56,7 +56,6 @@ export class ItemsController {
     return this.itemsService.getSorts();
   }
 
-  // NEW: tag options for the items multi-select
   @Get('tags')
   getTags() {
     return this.itemsService.getTags();
@@ -69,31 +68,25 @@ export class ItemsController {
     return this.itemsService.create(body, user);
   }
 
-  /** Step 0: Email gate — validate email before showing OTP or content */
   @Post('share/check-email')
   async checkShareEmail(@Body() dto: CheckShareEmailDto) {
     return this.itemsService.checkShareEmail(dto);
   }
 
-  /** Step 1 (personal): Verify OTP sent to user's email */
   @Post('share/verify-otp')
   async verifyShareOtp(@Body() verifyDto: VerifyShareOtpDto) {
     return this.itemsService.verifyShareOtp(verifyDto);
   }
 
-  /** Step 1 (public): Direct access by token (after email gate passes) */
   @Get('share/access/:token')
   async accessSharedResource(@Param('token') token: string) {
     return this.itemsService.accessSharedResource(token);
   }
 
-  /** Folder items public endpoint */
   @Get('share/folder-items/:token')
   async accessSharedFolderItems(@Param('token') token: string) {
     return this.itemsService.accessSharedFolderItems(token);
   }
-
-  //  Authenticated endpoints
 
   @UseGuards(JwtAuthGuard)
   @Delete('bulk/delete')

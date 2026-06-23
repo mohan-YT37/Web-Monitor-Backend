@@ -25,7 +25,6 @@ export class GroupsService {
         return permissionDenied('create', 'group');
       }
 
-      // Check for duplicate name
       const existingGroup = await this.groupRepo.findOne({
         where: { name: body.name },
       });
@@ -64,12 +63,10 @@ export class GroupsService {
 
       const qb = this.groupRepo.createQueryBuilder('group');
 
-      // Only show groups created by user
       qb.andWhere('group.created_by = :userId', {
         userId: user?.id,
       });
 
-      // Search
       if (query?.search) {
         qb.andWhere(
           '(group.name LIKE :search OR group.label LIKE :search OR group.description LIKE :search)',
@@ -79,7 +76,6 @@ export class GroupsService {
         );
       }
 
-      // Filter
       if (query?.filter) {
         switch (query.filter.toUpperCase()) {
           case 'ACTIVE':
@@ -189,7 +185,6 @@ export class GroupsService {
         return permissionDenied('edit', 'group');
       }
 
-      // Check for duplicate name
       if (body.name && body.name !== group.name) {
         const existingGroup = await this.groupRepo.findOne({
           where: { name: body.name },

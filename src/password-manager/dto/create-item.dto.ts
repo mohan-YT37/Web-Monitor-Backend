@@ -55,7 +55,6 @@ export class CreateItemDto {
   @IsNotEmpty({ message: 'Folder ID is required' })
   folder_id!: number;
 
-  // NEW: tags
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

@@ -402,7 +402,6 @@ export class FoldersService {
         await this.folderRepo.save(folder);
 
         await this.logsService.record({
-          // NEW
           user_id: user?.id,
           user_email: user?.email,
           action: 'deleted',
