@@ -28,7 +28,7 @@ import {
 } from './dto/share-resource.dto';
 import { ShareWithUsersDto } from './dto/share-with-users.dto';
 import { FolderPermissionEntry } from './interfaces/folder-permission.interface';
-import { LogsService } from 'src/logs/logs.service';
+import { LogsService } from '../logs/logs.service';
 
 function computeExpiresAt(expires_in?: ExpireOption): Date | null {
   if (!expires_in || expires_in === 'never') return null;
