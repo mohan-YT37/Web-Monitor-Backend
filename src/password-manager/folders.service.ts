@@ -15,7 +15,7 @@ import { UpdateFolderDto } from './dto/update-folder.dto';
 import { ShareWithUsersDto } from './dto/share-with-users.dto';
 import { hasPermission } from 'src/common/helper/menu.permission.helper';
 import { FolderPermissionEntry } from './interfaces/folder-permission.interface';
-import { LogsService } from '../logs/logs.service';
+import { LogsService } from '../password-logs/password-logs.service';
 
 @Injectable()
 export class FoldersService {

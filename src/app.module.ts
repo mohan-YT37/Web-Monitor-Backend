@@ -13,8 +13,7 @@ import { PasswordManagerModule } from './password-manager/password-manager.modul
 import { TagsModule } from './tags/tags.module';
 import { RolesModule } from './roles/roles.module';
 import { DepartmentsModule } from './departments/departments.module';
-// import { LogsModule } from './logs/logs.module';
-import { LogsModule } from '../../src/src/logs/logs.module';
+import { LogsModule } from './password-logs/password-logs.module';
 import { GroupModule } from './group/group.module';
 
 @Module({
