@@ -93,7 +93,7 @@ export class MenusService {
         where: { active: 1 },
         order: { sort_order: 'ASC' },
       });
-      console.log(allMenus);
+      // console.log(allMenus);
       
       if(allMenus?.length <= 0) return errorResponse("Menus Not Found",404)
       const tree = this.buildMenuTree(allMenus);

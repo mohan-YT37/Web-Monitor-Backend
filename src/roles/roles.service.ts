@@ -123,6 +123,7 @@ export class RoleService {
       }
 
       const [roles, total] = await qb.getManyAndCount();
+      console.log("allroles",roles)
 
       if (!roles || roles.length === 0) {
         return successResponse([], 'No Roles Found', 200);

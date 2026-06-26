@@ -4,6 +4,7 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { seedSuperAdmin } from './seed-super-admin';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -45,6 +46,7 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  await seedSuperAdmin(app);
   await app.listen(process.env.PORT || 3000);
 
   console.log(`SERVER RUNNING ON ${process.env.PORT || 3000}`);

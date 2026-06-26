@@ -144,13 +144,11 @@ export class AuthService {
       const hashRefreshToken = await bcrypt.hash(refreshToken, 10);
       user.refresh_token = hashRefreshToken;
       await this.userRepo.save(user);
-
+      console.log("user",user)
       const menus =
-        await this.permissionsService.buildMenuTreeWithRolePermissions(
-          user.role,
-        );
+        await this.permissionsService.buildMenuTreeWithRolePermissions(user.role);
       
-      console.log("allmenus",menus)
+      // console.log("allmenus",menus)
 
       return successResponse(
         {

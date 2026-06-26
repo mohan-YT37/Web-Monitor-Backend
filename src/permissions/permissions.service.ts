@@ -140,7 +140,7 @@ export class PermissionsService {
   }
 
   // Build nested menu tree with permissions for login response
-  async buildMenuTreeWithRolePermissions(roleValue: string): Promise<any[]> {
+  async buildMenuTreeWithRolePermissions(roleValue: string) {
     const role = await this.roleRepo.findOne({ where: { value: roleValue } });
     if (!role) return [];
 
