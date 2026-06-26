@@ -31,7 +31,6 @@ export class AuthService {
     private jwtService: JwtService,
     private mailService: MailService,
 
-    @InjectRepository(Role) private roleRepo: Repository<Role>,
     private permissionsService: PermissionsService,
   ) {}
 
@@ -150,8 +149,8 @@ export class AuthService {
         await this.permissionsService.buildMenuTreeWithRolePermissions(
           user.role,
         );
-      const allRoles = await this.roleRepo.find({ select: ['value'] });
-      const roleValues = allRoles.map((r) => r.value);
+      
+      console.log("allmenus",menus)
 
       return successResponse(
         {
@@ -161,7 +160,6 @@ export class AuthService {
             email: user?.email,
             role: user?.role,
           },
-          roles: roleValues,
           menus,
           access_token: accessToken,
           refresh_token: refreshToken,
