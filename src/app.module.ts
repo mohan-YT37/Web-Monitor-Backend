@@ -15,6 +15,9 @@ import { RolesModule } from './roles/roles.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { LogsModule } from './password-logs/password-logs.module';
 import { GroupModule } from './group/group.module';
+import { EmployeeRolesModule } from './employee-roles/employee-roles.module';
+import { MenusModule } from './menus/menus.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -44,6 +47,9 @@ import { GroupModule } from './group/group.module';
     DepartmentsModule,
     LogsModule,
     GroupModule,
+    EmployeeRolesModule,
+    MenusModule,
+    PermissionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -10,19 +10,26 @@ import {
   successResponse,
   permissionDenied,
 } from 'src/common/response/response.util';
-import { hasPermission } from 'src/common/helper/menu.permission.helper';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class DepartmentService {
   constructor(
     @InjectRepository(Department)
     private departmentRepo: Repository<Department>,
+    private permissionsService: PermissionsService,
   ) {}
 
   async create(body: CreateDepartmentDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'department', 'create')) {
-        return permissionDenied('create', 'departments');
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'department',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'department');
       }
 
       const existingDepartment = await this.departmentRepo.findOne({
@@ -115,7 +122,7 @@ export class DepartmentService {
         'department.id',
         'department.public_id',
         'department.name',
-        'department.label',
+        'department.value',
         'department.description',
         'department.active',
         'department.created_at',
@@ -153,6 +160,16 @@ export class DepartmentService {
 
   async findOne(public_id: string, user: any) {
     try {
+       if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'department',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'department');
+      }
+
       const department = await this.departmentRepo.findOne({
         where: {
           public_id,
@@ -177,6 +194,16 @@ export class DepartmentService {
 
   async update(public_id: string, body: UpdateDepartmentDto, user: any) {
     try {
+       if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'department',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'department');
+      }
+
       const department = await this.departmentRepo.findOne({
         where: {
           public_id,
@@ -186,10 +213,6 @@ export class DepartmentService {
 
       if (!department) {
         return errorResponse('Department not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'department', 'edit')) {
-        return permissionDenied('edit', 'departments');
       }
 
       if (body.name && body.name !== department.name) {
@@ -220,6 +243,17 @@ export class DepartmentService {
 
   async remove(public_id: string, user: any) {
     try {
+
+       if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'department',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'department');
+      }
+
       const department = await this.departmentRepo.findOne({
         where: {
           public_id,
@@ -231,9 +265,6 @@ export class DepartmentService {
         return errorResponse('Department not found', 404);
       }
 
-      if (!hasPermission(user?.role, 'department', 'delete')) {
-        return permissionDenied('delete', 'departments');
-      }
 
       department.deleted_by = user?.id;
       await this.departmentRepo.save(department);
@@ -248,12 +279,19 @@ export class DepartmentService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
-      if (!public_ids?.length) {
-        return errorResponse('No department IDs provided', 400);
+
+       if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'department',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'department');
       }
 
-      if (!hasPermission(user?.role, 'department', 'delete')) {
-        return permissionDenied('delete', 'departments');
+      if (!public_ids?.length) {
+        return errorResponse('No department IDs provided', 400);
       }
 
       const departments = await this.departmentRepo.find({
@@ -289,9 +327,9 @@ export class DepartmentService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -301,10 +339,10 @@ export class DepartmentService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,

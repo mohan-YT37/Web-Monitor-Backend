@@ -12,10 +12,14 @@ import {
 import { hasPermission } from 'src/common/helper/menu.permission.helper';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectRepository(User) private userRepo: Repository<User>) {}
+  constructor(
+    @InjectRepository(User) private userRepo: Repository<User>,
+    private permissionsService: PermissionsService,
+  ) {}
 
   async findAll(
     query?: {
@@ -148,6 +152,16 @@ export class UsersService {
 
   async findOne(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'users',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'users');
+      }
+
       const userData = await this.userRepo.findOne({
         where: { public_id: public_id, created_by: user?.id },
         select: [
@@ -175,7 +189,13 @@ export class UsersService {
 
   async create(body: CreateUserDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'users', 'create')) {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'users',
+          'create',
+        ))
+      ) {
         return permissionDenied('create', 'users');
       }
 
@@ -210,7 +230,13 @@ export class UsersService {
 
   async update(public_id: string, data: UpdateUserDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'users', 'edit')) {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'users',
+          'edit',
+        ))
+      ) {
         return permissionDenied('edit', 'users');
       }
 
@@ -244,7 +270,13 @@ export class UsersService {
 
   async remove(public_id: string, user: any) {
     try {
-      if (!hasPermission(user?.role, 'users', 'delete')) {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'users',
+          'delete',
+        ))
+      ) {
         return permissionDenied('delete', 'users');
       }
 
@@ -269,6 +301,16 @@ export class UsersService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'users',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'users');
+      }
+      
       const users = await this.userRepo.find({
         where: {
           public_id: In(public_ids),
@@ -300,9 +342,9 @@ export class UsersService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -312,10 +354,10 @@ export class UsersService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,
@@ -325,9 +367,9 @@ export class UsersService {
   async getRoles() {
     return successResponse(
       [
-        { id: 1, label: 'Super Admin', value: 'super_admin' },
-        { id: 2, label: 'Manager', value: 'manager' },
-        { id: 3, label: 'Employee', value: 'employee' },
+        { id: 1, name: 'Super Admin', value: 'super_admin' },
+        { id: 2, name: 'Manager', value: 'manager' },
+        { id: 3, name: 'Employee', value: 'employee' },
       ],
       'User Role Fetced Successfully',
       200,

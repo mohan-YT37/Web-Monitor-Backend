@@ -28,8 +28,8 @@ export class Department {
   @Column({ type: 'varchar', length: 100, unique: true })
   name!: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
-  label!: string;
+  @Column({ type: 'varchar', length: 100, })
+  value!: string;
 
   @Column({ type: 'text', nullable: true })
   description!: string;
@@ -57,12 +57,22 @@ export class Department {
 
   @BeforeInsert()
   @BeforeUpdate()
-  generateLabel() {
-    if (this.name) {
-      this.label = this.name
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    }
+  generateLabelAndValue() {
+    if (!this.name) return;
+     // Name
+    this.name = this.name
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+      
+    // Value
+    this.value = this.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/_+/g, '_');
   }
 }

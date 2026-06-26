@@ -3,10 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Log } from './entities/password-log.entity';
 import { CreateLogDto } from './dto/create-password-log.dto';
-import { successResponse } from 'src/common/response/response.util';
+import {
+  permissionDenied,
+  successResponse,
+} from 'src/common/response/response.util';
 import { CatchError } from 'src/common/response/error.utils';
 import { LogAction, LogResourceType } from 'src/common/enum/log.enum';
 import { User } from 'src/users/entities/user.entity';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 const ACTION_VERBS: Record<LogAction, string> = {
   viewed: 'viewed',
@@ -54,8 +58,8 @@ export class LogsService {
     private logRepo: Repository<Log>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    private permissionsService: PermissionsService,
   ) {}
-
 
   private async resolveUserName(
     userId?: number,
@@ -73,7 +77,7 @@ export class LogsService {
     }
   }
 
-  async record(dto: CreateLogDto): Promise<void> {
+  async record(dto: CreateLogDto) {
     try {
       const resolvedUserName =
         dto.user_name ||
@@ -110,13 +114,16 @@ export class LogsService {
     }
   }
 
-  async findAll(query?: {
-    search?: string;
-    filter?: string;
-    sort?: string;
-    page?: number;
-    limit?: number;
-  }) {
+  async findAll(
+    query?: {
+      search?: string;
+      filter?: string;
+      sort?: string;
+      page?: number;
+      limit?: number;
+    },
+    user?: any,
+  ) {
     try {
       const page = query?.page ? Number(query.page) : 0;
       const limit = query?.limit ? Number(query.limit) : -1;
@@ -185,7 +192,17 @@ export class LogsService {
     }
   }
 
-  async findOne(public_id: string) {
+  async findOne(public_id: string, user: any) {
+    if (
+      !(await this.permissionsService.hasPermission(
+        user?.role,
+        'logs',
+        'create',
+      ))
+    ) {
+      return permissionDenied('create', 'logs');
+    }
+
     try {
       const log = await this.logRepo.findOne({ where: { public_id } });
       if (!log) {
@@ -200,17 +217,17 @@ export class LogsService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ITEM', label: 'Items' },
-        { id: 3, value: 'FOLDER', label: 'Folders' },
-        { id: 4, value: 'VIEWED', label: 'Viewed' },
-        { id: 5, value: 'CREATED', label: 'Created' },
-        { id: 6, value: 'UPDATED', label: 'Updated' },
-        { id: 7, value: 'DELETED', label: 'Deleted' },
-        { id: 8, value: 'COPIED', label: 'Copied' },
-        { id: 9, value: 'SHARED_LINK', label: 'Shared as Link' },
-        { id: 10, value: 'SHARED_USERS', label: 'Shared with Users' },
-        { id: 11, value: 'MOVED', label: 'Moved' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ITEM', name: 'Items' },
+        { id: 3, value: 'FOLDER', name: 'Folders' },
+        { id: 4, value: 'VIEWED', name: 'Viewed' },
+        { id: 5, value: 'CREATED', name: 'Created' },
+        { id: 6, value: 'UPDATED', name: 'Updated' },
+        { id: 7, value: 'DELETED', name: 'Deleted' },
+        { id: 8, value: 'COPIED', name: 'Copied' },
+        { id: 9, value: 'SHARED_LINK', name: 'Shared as Link' },
+        { id: 10, value: 'SHARED_USERS', name: 'Shared with Users' },
+        { id: 11, value: 'MOVED', name: 'Moved' },
       ],
       'Filter options fetched successfully',
       200,
@@ -220,8 +237,8 @@ export class LogsService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'NEWEST', label: 'Newest First' },
-        { id: 2, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'NEWEST', name: 'Newest First' },
+        { id: 2, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,

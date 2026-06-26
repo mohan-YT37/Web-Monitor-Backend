@@ -1,38 +1,34 @@
-import { Action } from '../enum/action.enum';
-import { MENU_BY_ROLE } from '../menu/menu.role';
+// src/common/helper/menu.permission.helper.ts
+import { Injectable } from '@nestjs/common';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
-const findModuleConfig = (node: any, module: string): any => {
-  if (!node || typeof node !== 'object') return undefined;
 
-  if (node[module] && typeof node[module] === 'object') {
-    return node[module];
-  }
+let permissionsServiceInstance: PermissionsService | null = null;
 
-  for (const key of Object.keys(node)) {
-    const val = node[key];
-    if (val && typeof val === 'object') {
-      const found = findModuleConfig(val, module);
-      if (found) return found;
-    }
-  }
-
-  return undefined;
+export const setPermissionsService = (service: PermissionsService) => {
+  permissionsServiceInstance = service;
 };
 
-export const hasPermission = (
+export const hasPermission = async (
   role: string,
   module: string,
-  action: keyof typeof Action,
-): boolean => {
-  if (!role || !module || !action) return false;
-
-  const normalizedRole = role.toLowerCase();
-  const roleConfig = MENU_BY_ROLE?.[normalizedRole];
-  if (!roleConfig) return false;
-
-  const moduleConfig = findModuleConfig(roleConfig, module);
-  if (!moduleConfig) return false;
-
-  return moduleConfig[action] === 1;
-};
+  action: 'view' | 'create' | 'edit' | 'delete',
+): Promise<boolean> => {
+  // Super admin safety net
+  if (role === 'super_admin') return true;
   
+  if (!permissionsServiceInstance) {
+    console.warn('PermissionsService not initialized, denying permission');
+    return false;
+  }
+  
+  return permissionsServiceInstance.hasPermission(role, module, action);
+};
+
+// Initialize the service in your main module
+@Injectable()
+export class PermissionHelperInitializer {
+  constructor(private permissionsService: PermissionsService) {
+    setPermissionsService(this.permissionsService);
+  }
+}

@@ -12,6 +12,7 @@ import * as nodemailer from 'nodemailer';
 import {
   successResponse,
   errorResponse,
+  permissionDenied,
 } from 'src/common/response/response.util';
 import { CatchError } from 'src/common/response/error.utils';
 import { MonitorGateway } from './monitor.gateway';
@@ -19,6 +20,7 @@ import { UpdateMonitorDto } from './dto/update-monitor.dto';
 import { CreateMonitorDto } from './dto/create-monitor.dto';
 import { Cron } from '@nestjs/schedule';
 import { MailService } from 'src/mail/mail.service';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class MonitorService {
@@ -30,42 +32,43 @@ export class MonitorService {
     @Inject(forwardRef(() => MonitorGateway))
     private monitorGateway: MonitorGateway,
     private mailService: MailService,
+    private permissionsService: PermissionsService,
   ) {}
 
-  private logMonitorResult(monitor: Monitor) {
-    console.log(`STATUS         : ${monitor.status}`);
-    console.log(`RESPONSE       : ${monitor.response_time || 0} ms`);
-    console.log(`PING           : ${monitor.ping_response || 0} ms`);
-    console.log(`IP ADDRESS     : ${monitor.ip_address || 'Unavailable'}`);
+  // private logMonitorResult(monitor: Monitor) {
+  //   console.log(`STATUS         : ${monitor.status}`);
+  //   console.log(`RESPONSE       : ${monitor.response_time || 0} ms`);
+  //   console.log(`PING           : ${monitor.ping_response || 0} ms`);
+  //   console.log(`IP ADDRESS     : ${monitor.ip_address || 'Unavailable'}`);
 
-    console.log(`SSL STATUS     : ${monitor.ssl_status || 'N/A'}`);
-    console.log(`SSL DAYS LEFT  : ${monitor.ssl_days_left || 0}`);
+  //   console.log(`SSL STATUS     : ${monitor.ssl_status || 'N/A'}`);
+  //   console.log(`SSL DAYS LEFT  : ${monitor.ssl_days_left || 0}`);
 
-    console.log(`DOMAIN STATUS  : ${monitor.domain_status || 'N/A'}`);
-    console.log(`DOMAIN DAYS    : ${monitor.domain_days_left || 0}`);
+  //   console.log(`DOMAIN STATUS  : ${monitor.domain_status || 'N/A'}`);
+  //   console.log(`DOMAIN DAYS    : ${monitor.domain_days_left || 0}`);
 
-    console.log(`UPTIME         : ${monitor.uptime_percentage}%`);
-    console.log(`TOTAL CHECKS   : ${monitor.total_checks}`);
-    console.log(`SUCCESS        : ${monitor.success_checks}`);
-    console.log(`FAILED         : ${monitor.failed_checks}`);
+  //   console.log(`UPTIME         : ${monitor.uptime_percentage}%`);
+  //   console.log(`TOTAL CHECKS   : ${monitor.total_checks}`);
+  //   console.log(`SUCCESS        : ${monitor.success_checks}`);
+  //   console.log(`FAILED         : ${monitor.failed_checks}`);
 
-    if (monitor.last_error) {
-      console.log(`LAST ERROR     : ${monitor.last_error}`);
-    }
-  }
+  //   if (monitor.last_error) {
+  //     console.log(`LAST ERROR     : ${monitor.last_error}`);
+  //   }
+  // }
 
-  private logMonitoringStart(total: number) {
-    console.log('\n');
-    console.log(`================ MONITORING STARTED =================`);
-    console.log(`TOTAL MONITORS : ${total}`);
-    console.log(`TIME           : ${new Date().toLocaleString()}`);
-  }
+  // private logMonitoringStart(total: number) {
+  //   console.log('\n');
+  //   console.log(`================ MONITORING STARTED =================`);
+  //   console.log(`TOTAL MONITORS : ${total}`);
+  //   console.log(`TIME           : ${new Date().toLocaleString()}`);
+  // }
 
-  private logMonitoringEnd() {
-    console.log('\n');
-    console.log(`================ MONITORING FINISHED ================`);
-    console.log(`TIME           : ${new Date().toLocaleString()}`);
-  }
+  // private logMonitoringEnd() {
+  //   console.log('\n');
+  //   console.log(`================ MONITORING FINISHED ================`);
+  //   console.log(`TIME           : ${new Date().toLocaleString()}`);
+  // }
 
   private getRootDomain(hostname: string): string {
     const parts = hostname.split('.');
@@ -169,7 +172,7 @@ export class MonitorService {
       monitor.domain_days_left = 0;
       monitor.domain_status = 'Domain Check Failed';
     }
-    console.log('domain_status', monitor?.domain_status);
+    // console.log('domain_status', monitor?.domain_status);
   }
 
   private async sendDownNotification(monitor: Monitor): Promise<void> {
@@ -191,13 +194,13 @@ export class MonitorService {
           </div>
         `,
       );
-      console.log(`[EMAIL] Down notification sent for ${monitor.website_name}`);
+      // console.log(`[EMAIL] Down notification sent for ${monitor.website_name}`);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.log(
-        `[EMAIL] Failed to send for ${monitor.website_name}:`,
-        errorMessage,
-      );
+      // console.log(
+      //   `[EMAIL] Failed to send for ${monitor.website_name}:`,
+      //   errorMessage,
+      // );
     }
   }
 
@@ -223,15 +226,15 @@ export class MonitorService {
           </div>
         `,
       );
-      console.log(
-        `[EMAIL] Recovery notification sent for ${monitor.website_name}`,
-      );
+      // console.log(
+      //   `[EMAIL] Recovery notification sent for ${monitor.website_name}`,
+      // );
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.log(
-        `[EMAIL] Failed to send for ${monitor.website_name}:`,
-        errorMessage,
-      );
+      // console.log(
+      //   `[EMAIL] Failed to send for ${monitor.website_name}:`,
+      //   errorMessage,
+      // );
     }
   }
 
@@ -383,9 +386,9 @@ export class MonitorService {
         monitor.status = 'PAUSED';
         await this.monitorRepo.save(monitor);
       }
-      console.log(
-        `******* ${monitor.website_name} is PAUSED in performIntervalCheck *******`,
-      );
+      // console.log(
+      //   `******* ${monitor.website_name} is PAUSED in performIntervalCheck *******`,
+      // );
       return monitor;
     }
 
@@ -435,9 +438,9 @@ export class MonitorService {
 
           await this.sendDownNotification(monitor);
         } else if (previousStatus === 'DOWN') {
-          console.log(
-            `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
-          );
+          // console.log(
+          //   `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
+          // );
         }
       }
 
@@ -515,9 +518,9 @@ export class MonitorService {
         monitor.last_down_at = new Date().toISOString();
         await this.sendDownNotification(monitor);
       } else if (previousStatus === 'DOWN') {
-        console.log(
-          `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
-        );
+        // console.log(
+        //   `[${monitor.website_name}] STATUS: DOWN | Error: ${monitor.last_error}`,
+        // );
       }
 
       const savedMonitor = await this.monitorRepo.save(monitor);
@@ -540,6 +543,16 @@ export class MonitorService {
 
   async create(data: CreateMonitorDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'monitor');
+      }
+
       const existingMonitor = await this.monitorRepo.findOne({
         where: [{ url: data.url }, { website_name: data.website_name }],
       });
@@ -637,7 +650,7 @@ export class MonitorService {
       });
 
       if (!downSites.length) {
-        console.log('No down sites for daily report');
+        // console.log('No down sites for daily report');
         return;
       }
 
@@ -657,7 +670,7 @@ export class MonitorService {
 
       const reportEmail = process.env.REPORT_EMAIL;
       if (!reportEmail) {
-        console.log('Report email not configured');
+        // console.log('Report email not configured');
         return;
       }
 
@@ -685,11 +698,11 @@ export class MonitorService {
       `,
       );
 
-      console.log('Daily report mail sent');
+      // console.log('Daily report mail sent');
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.log('Daily report failed', errorMessage);
+      // console.log('Daily report failed', errorMessage);
     }
   }
 
@@ -698,7 +711,7 @@ export class MonitorService {
     user?: any,
   ) {
     try {
-      console.log('monitorList', '........');
+      // console.log('monitorList', '........');
       const qb = this.monitorRepo
         .createQueryBuilder('monitor')
         .leftJoinAndSelect('monitor.history', 'history');
@@ -769,7 +782,7 @@ export class MonitorService {
       if (!data || data.length === 0) {
         return successResponse([], 'No monitors found', 200);
       }
-      console.log('monitorList', data);
+      // console.log('monitorList', data);
       return successResponse(data, 'Monitors fetched successfully', 200);
     } catch (error) {
       CatchError(error);
@@ -778,6 +791,16 @@ export class MonitorService {
 
   async findOne(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'monitor');
+      }
+
       const monitor = await this.monitorRepo.findOne({
         where: { public_id, created_by: user?.id },
         relations: ['history'],
@@ -801,6 +824,16 @@ export class MonitorService {
 
   async update(public_id: string, data: UpdateMonitorDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'monitor');
+      }
+
       const monitor = await this.monitorRepo.findOne({
         where: { public_id, created_by: user?.id },
       });
@@ -855,6 +888,16 @@ export class MonitorService {
 
   async remove(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'monitor');
+      }
+
       const monitor = await this.monitorRepo.findOne({
         where: { public_id },
       });
@@ -893,6 +936,16 @@ export class MonitorService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'monitor');
+      }
+
       if (!public_ids.length) {
         return errorResponse('No monitor ids provided', 400);
       }
@@ -938,6 +991,16 @@ export class MonitorService {
 
   async bulkUpload(user: any, file: Express.Multer.File) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'monitor',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'monitor');
+      }
+      
       if (!file) {
         return errorResponse('File is required', 400);
       }
@@ -1136,10 +1199,10 @@ export class MonitorService {
   async getFilters() {
     return successResponse(
       [
-        { value: '', label: 'All' },
-        { value: 'UP', label: 'Up' },
-        { value: 'DOWN', label: 'Down' },
-        { value: 'PAUSED', label: 'Paused' },
+        { value: '', name: 'All' },
+        { value: 'UP', name: 'Up' },
+        { value: 'DOWN', name: 'Down' },
+        { value: 'PAUSED', name: 'Paused' },
       ],
       'Filter options fetched successfully',
       200,
@@ -1151,37 +1214,37 @@ export class MonitorService {
       [
         {
           value: 1,
-          label: 'Every 1 minute',
+          name: 'Every 1 minute',
           description: 'Most frequent checks',
           recommended: false,
         },
         {
           value: 5,
-          label: 'Every 5 minutes',
+          name: 'Every 5 minutes',
           description: 'Recommended for critical sites',
           recommended: true,
         },
         {
           value: 10,
-          label: 'Every 10 minutes',
+          name: 'Every 10 minutes',
           description: 'Standard monitoring',
           recommended: false,
         },
         {
           value: 15,
-          label: 'Every 15 minutes',
+          name: 'Every 15 minutes',
           description: 'For less critical sites',
           recommended: false,
         },
         {
           value: 30,
-          label: 'Every 30 minutes',
+          name: 'Every 30 minutes',
           description: 'Basic monitoring',
           recommended: false,
         },
         {
           value: 60,
-          label: 'Every 1 hour',
+          name: 'Every 1 hour',
           description: 'Minimal monitoring',
           recommended: false,
         },
@@ -1194,10 +1257,10 @@ export class MonitorService {
   async getSorts() {
     return successResponse(
       [
-        { value: 'A_Z', label: 'A to Z' },
-        { value: 'Z_A', label: 'Z to A' },
-        { value: 'NEWEST', label: 'Newest First' },
-        { value: 'OLDEST', label: 'Oldest First' },
+        { value: 'A_Z', name: 'A to Z' },
+        { value: 'Z_A', name: 'Z to A' },
+        { value: 'NEWEST', name: 'Newest First' },
+        { value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,
@@ -1207,10 +1270,10 @@ export class MonitorService {
   async getTimeRanges() {
     return successResponse(
       [
-        { value: '1h', label: 'Last hour' },
-        { value: '24h', label: 'Last 24 hours' },
-        { value: '7d', label: 'Last 7 days' },
-        { value: '30d', label: 'Last 30 days' },
+        { value: '1h', name: 'Last hour' },
+        { value: '24h', name: 'Last 24 hours' },
+        { value: '7d', name: 'Last 7 days' },
+        { value: '30d', name: 'Last 30 days' },
       ],
       'Time range options fetched successfully',
     );
@@ -1219,10 +1282,10 @@ export class MonitorService {
   async getNotificationTypes() {
     return successResponse(
       [
-        { value: 'email', label: 'Email' },
-        { value: 'sms', label: 'SMS' },
-        { value: 'telegram', label: 'Telegram' },
-        { value: 'webhook', label: 'Webhook' },
+        { value: 'email', name: 'Email' },
+        { value: 'sms', name: 'SMS' },
+        { value: 'telegram', name: 'Telegram' },
+        { value: 'webhook', name: 'Webhook' },
       ],
       'Notification Type options fetched successfully',
     );
@@ -1231,12 +1294,12 @@ export class MonitorService {
   async getRetryOptions() {
     return successResponse(
       [
-        { value: 1, label: 'One' },
-        { value: 2, label: 'Two' },
-        { value: 3, label: 'Three' },
-        { value: 4, label: 'Four' },
-        { value: 5, label: 'Five' },
-        { value: 6, label: 'Six' },
+        { value: 1, name: 'One' },
+        { value: 2, name: 'Two' },
+        { value: 3, name: 'Three' },
+        { value: 4, name: 'Four' },
+        { value: 5, name: 'Five' },
+        { value: 6, name: 'Six' },
       ],
       'Retry options fetched successfully',
     );

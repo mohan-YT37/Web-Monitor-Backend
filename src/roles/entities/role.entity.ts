@@ -1,3 +1,4 @@
+// src/roles/entities/role.entity.ts
 import {
   Column,
   CreateDateColumn,
@@ -14,7 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class Role {
   @PrimaryGeneratedColumn()
   id!: number;
-  
+
   @Column({ unique: true, length: 50 })
   public_id!: string;
 
@@ -28,10 +29,7 @@ export class Role {
   @Column({ type: 'varchar', length: 100, unique: true })
   name!: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
-  label!: string;
-
-  @Column({ type: 'varchar', length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50 })
   value!: string;
 
   @Column({ type: 'text', nullable: true })
@@ -39,6 +37,9 @@ export class Role {
 
   @Column({ default: 1 })
   active!: number;
+
+  @Column({ default: false })
+  is_system_role!: boolean;
 
   @CreateDateColumn()
   created_at!: Date;
@@ -61,17 +62,21 @@ export class Role {
   @BeforeInsert()
   @BeforeUpdate()
   generateLabelAndValue() {
-    if (this.name) {
-      // Generate label: "super_admin" -> "Super Admin"
-      this.label = this.name
-        .split('_')
-        .map(
-          (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-        )
-        .join(' ');
-
-      // Generate value: same as name for consistency
-      this.value = this.name;
-    }
+    if (!this.name) return;
+    // Name formatting
+    this.name = this.name
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+    
+    // Value formatting
+    this.value = this.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/_+/g, '_');
   }
 }

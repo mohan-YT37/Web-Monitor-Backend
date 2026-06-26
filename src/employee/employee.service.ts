@@ -8,12 +8,14 @@ import { CatchError } from '../common/response/catch-error.util';
 import {
   successResponse,
   errorResponse,
+  permissionDenied,
 } from '../common/response/response.util';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { instanceToPlain } from 'class-transformer';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class EmployeeService {
@@ -22,6 +24,8 @@ export class EmployeeService {
     private employeeRepo: Repository<Employee>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+
+    private permissionsService: PermissionsService,
   ) {}
 
   private deleteOldFile(filePath: string | null) {
@@ -48,6 +52,16 @@ export class EmployeeService {
 
   async create(dto: CreateEmployeeDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'employee',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'employee');
+      }
+
       // Check if email already exists in employee table
       const existingEmail = await this.employeeRepo.findOne({
         where: { email: dto.email },
@@ -279,6 +293,16 @@ export class EmployeeService {
 
   async findOne(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'employee',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'employee');
+      }
+      
       const employee = await this.employeeRepo.findOne({
         where: { public_id, created_by: user?.id },
       });
@@ -303,6 +327,16 @@ export class EmployeeService {
 
   async update(public_id: string, dto: UpdateEmployeeDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'employee',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'employee');
+      }
+
       const employee = await this.employeeRepo.findOne({
         where: { public_id, created_by: user?.id },
       });
@@ -439,6 +473,16 @@ export class EmployeeService {
 
   async remove(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'employee',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'employee');
+      }
+
       const employee = await this.employeeRepo.findOne({
         where: { public_id, created_by: user?.id },
       });
@@ -475,6 +519,15 @@ export class EmployeeService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'employee',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'employee');
+      }
       if (!public_ids || !public_ids.length) {
         return errorResponse('No employee IDs provided', 400);
       }
@@ -528,12 +581,12 @@ export class EmployeeService {
   async getFilters() {
     return successResponse(
       [
-        { value: '', label: 'All' },
-        { value: 'ACTIVE', label: 'Active' },
-        { value: 'INACTIVE', label: 'Inactive' },
-        { value: 'TEMPORARY', label: 'Temporary' },
-        { value: 'PERMANENT', label: 'Permanent' },
-        { value: 'BOND', label: 'Bond' },
+        { value: '', name: 'All' },
+        { value: 'ACTIVE', name: 'Active' },
+        { value: 'INACTIVE', name: 'Inactive' },
+        { value: 'TEMPORARY', name: 'Temporary' },
+        { value: 'PERMANENT', name: 'Permanent' },
+        { value: 'BOND', name: 'Bond' },
       ],
       'Filter options fetched successfully',
       200,
@@ -543,12 +596,40 @@ export class EmployeeService {
   async getSorts() {
     return successResponse(
       [
-        { value: 'A_Z', label: 'A to Z' },
-        { value: 'Z_A', label: 'Z to A' },
-        { value: 'NEWEST', label: 'Newest First' },
-        { value: 'OLDEST', label: 'Oldest First' },
+        { value: 'A_Z', name: 'A to Z' },
+        { value: 'Z_A', name: 'Z to A' },
+        { value: 'NEWEST', name: 'Newest First' },
+        { value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
+      200,
+    );
+  }
+
+  async getType() {
+    return successResponse(
+      [
+        { id: 1, name: 'Temporary', value: 'temporary' },
+        { id: 2, name: 'Permanent', value: 'permanent' },
+      ],
+      'Employee Type options fetched successfully',
+      200,
+    );
+  }
+
+  async getBloodGroup() {
+    return successResponse(
+      [
+        { id: 1, name: 'A+', value: 'A+' },
+        { id: 2, name: 'A-', value: 'A-' },
+        { id: 3, name: 'B+', value: 'B+' },
+        { id: 4, name: 'B-', value: 'B-' },
+        { id: 5, name: 'AB+', value: 'AB+' },
+        { id: 6, name: 'AB-', value: 'AB-' },
+        { id: 7, name: 'O+', value: 'O+' },
+        { id: 8, name: 'O-', value: 'O-' },
+      ],
+      'Blood Group options fetched successfully',
       200,
     );
   }

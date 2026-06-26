@@ -14,8 +14,8 @@ import { ClientService } from './client.service';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import type { Request } from 'express';
-import type { JwtUser } from 'src/auth/types/user.interface';
+import { Request } from 'express';
+import { JwtUser } from 'src/auth/types/user.interface';
 
 @UseGuards(JwtAuthGuard)
 @Controller('client')
@@ -44,6 +44,11 @@ export class ClientController {
       },
       user,
     );
+  }
+
+  @Get('contact_type')
+  getContactType() {
+    return this.clientService.getContactType();
   }
 
   @Get('filters')

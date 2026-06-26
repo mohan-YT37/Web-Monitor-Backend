@@ -160,17 +160,18 @@ export class FoldersService {
 
   async expireDays() {
     const data = [
-      { id: 1, value: 'never', label: 'Never', desc: 'No Expires' },
-      { id: 2, value: '1hour', label: '1 Hour', desc: 'Expires in 1 hour' },
-      { id: 3, value: '24hours', label: '24 Hours', desc: 'Expires tomorrow' },
-      { id: 4, value: '1week', label: '1 Week', desc: 'Expires in 7 days' },
-      { id: 5, value: '1month', label: '1 Month', desc: 'Expires in 30 days' },
+      { id: 1, value: 'never', name: 'Never', desc: 'No Expires' },
+      { id: 2, value: '1hour', name: '1 Hour', desc: 'Expires in 1 hour' },
+      { id: 3, value: '24hours', name: '24 Hours', desc: 'Expires tomorrow' },
+      { id: 4, value: '1week', name: '1 Week', desc: 'Expires in 7 days' },
+      { id: 5, value: '1month', name: '1 Month', desc: 'Expires in 30 days' },
     ];
     return successResponse(data, 'Expire days Fetced Successfully', 200);
   }
 
   async findOne(public_id: string, user: any) {
     try {
+
       const folder = await this.folderRepo.findOne({
         where: { public_id },
         select: [
@@ -229,9 +230,6 @@ export class FoldersService {
 
   async create(body: CreateFolderDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'folders', 'create')) {
-        return permissionDenied('create', 'folders');
-      }
 
       const hasExplicitPermissions =
         Array.isArray(body.permissions) && body.permissions.length > 0;
@@ -265,6 +263,7 @@ export class FoldersService {
 
   async update(public_id: string, data: UpdateFolderDto, user: any) {
     try {
+
       const folder = await this.folderRepo.findOne({ where: { public_id } });
       if (!folder) {
         return errorResponse('Folder Not Found', 400);
@@ -383,6 +382,7 @@ export class FoldersService {
 
   async remove(public_id: string, user: any) {
     try {
+
       const folder = await this.folderRepo.findOne({ where: { public_id } });
       if (!folder) {
         return errorResponse('Folder Not Found', 400);
@@ -427,7 +427,7 @@ export class FoldersService {
 
       await this.logsService.record({
         user_id: user?.id,
-        user_email: user?.email,  
+        user_email: user?.email,
         action: 'deleted',
         resource_type: 'folder',
         resource_id: folder.id,

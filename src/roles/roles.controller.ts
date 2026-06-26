@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   Query,
+  Put,
 } from '@nestjs/common';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { JwtUser } from 'src/auth/types/user.interface';
 import { RoleService } from './roles.service';
+import { UpdateRolePermissionsDto } from 'src/permissions/dto/update-role-permissions.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('roles')
@@ -64,6 +66,20 @@ export class RoleController {
   findOne(@Param('public_id') public_id: string, @Req() req?: Request) {
     const user = req?.user as JwtUser;
     return this.roleService.findOne(public_id, user);
+  }
+  @Get(':public_id/menus')
+  getMenus(@Param('public_id') public_id: string) {
+    return this.roleService.getMenus(public_id);
+  }
+
+  @Put(':public_id/menus')
+  updateMenus(
+    @Param('public_id') public_id: string,
+    @Body() body: UpdateRolePermissionsDto,
+    @Req() req: Request,
+  ) {
+    const user = req?.user as JwtUser;
+    return this.roleService.updateMenus(public_id, body.permissions, user);
   }
 
   @Patch(':public_id')

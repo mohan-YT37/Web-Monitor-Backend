@@ -10,36 +10,40 @@ import {
   successResponse,
   permissionDenied,
 } from 'src/common/response/response.util';
-import { hasPermission } from 'src/common/helper/menu.permission.helper';
+import { PermissionsService } from 'src/permissions/permissions.service';
+import { MenuPermissionItemDto } from 'src/permissions/dto/update-role-permissions.dto';
 
 @Injectable()
 export class RoleService {
   constructor(
     @InjectRepository(Role)
     private roleRepo: Repository<Role>,
+    private permissionsService: PermissionsService,
   ) {}
 
   async create(body: CreateRoleDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'role', 'create')) {
-        return permissionDenied('create', 'roles');
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'role',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'role');
       }
 
-      // Check for duplicate name
       const existingRole = await this.roleRepo.findOne({
         where: { name: body.name },
       });
-
       if (existingRole) {
         return errorResponse('Role with this name already exists', 409);
       }
 
-      const newRole = this.roleRepo.create({
-        ...body,
-        created_by: user?.id,
-      });
-
+      const newRole = this.roleRepo.create({ ...body, created_by: user?.id });
       const savedRole = await this.roleRepo.save(newRole);
+
+      await this.permissionsService.assignDefaultPermissions(savedRole);
 
       return successResponse(savedRole, 'Role created successfully', 201);
     } catch (error) {
@@ -63,17 +67,12 @@ export class RoleService {
       const limit = Number(query?.limit) || 10;
 
       const qb = this.roleRepo.createQueryBuilder('role');
-
-      qb.andWhere('role.created_by = :userId', {
-        userId: user?.id,
-      });
+      qb.andWhere('role.created_by = :userId', { userId: user?.id });
 
       if (query?.search) {
         qb.andWhere(
           '(role.name LIKE :search OR role.label LIKE :search OR role.description LIKE :search)',
-          {
-            search: `%${query.search}%`,
-          },
+          { search: `%${query.search}%` },
         );
       }
 
@@ -112,7 +111,6 @@ export class RoleService {
         'role.id',
         'role.public_id',
         'role.name',
-        'role.label',
         'role.value',
         'role.description',
         'role.active',
@@ -151,17 +149,20 @@ export class RoleService {
 
   async findOne(public_id: string, user: any) {
     try {
-      const role = await this.roleRepo.findOne({
-        where: {
-          public_id,
-          created_by: user?.id,
-        },
-      });
-
-      if (!role) {
-        return errorResponse('Role not found', 404);
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'role',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'role');
       }
 
+      const role = await this.roleRepo.findOne({
+        where: { public_id, created_by: user?.id },
+      });
+      if (!role) return errorResponse('Role not found', 404);
       return successResponse(role, 'Role fetched successfully', 200);
     } catch (error) {
       console.error(error);
@@ -171,36 +172,33 @@ export class RoleService {
 
   async update(public_id: string, body: UpdateRoleDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'role',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'role');
+      }
+
       const role = await this.roleRepo.findOne({
-        where: {
-          public_id,
-          created_by: user?.id,
-        },
+        where: { public_id, created_by: user?.id },
       });
-
-      if (!role) {
-        return errorResponse('Role not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'role', 'edit')) {
-        return permissionDenied('edit', 'roles');
-      }
+      if (!role) return errorResponse('Role not found', 404);
 
       if (body.name && body.name !== role.name) {
         const existingRole = await this.roleRepo.findOne({
           where: { name: body.name },
         });
-
-        if (existingRole) {
+        if (existingRole)
           return errorResponse('Role with this name already exists', 409);
-        }
       }
 
       Object.assign(role, body);
       role.updated_by = user?.id;
 
       const updatedRole = await this.roleRepo.save(role);
-
       return successResponse(updatedRole, 'Role updated successfully', 200);
     } catch (error) {
       console.error(error);
@@ -210,23 +208,24 @@ export class RoleService {
 
   async remove(public_id: string, user: any) {
     try {
+
+      
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'role',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'role');
+      }
+
       const role = await this.roleRepo.findOne({
-        where: {
-          public_id,
-          created_by: user?.id,
-        },
+        where: { public_id, created_by: user?.id },
       });
+      if (!role) return errorResponse('Role not found', 404);
 
-      if (!role) {
-        return errorResponse('Role not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'role', 'delete')) {
-        return permissionDenied('delete', 'roles');
-      }
-
-      // Prevent deletion of system roles
-      const systemRoles = ['super_admin', 'manager',];
+      const systemRoles = ['super_admin', 'manager'];
       if (systemRoles.includes(role.name)) {
         return errorResponse('Cannot delete system roles', 403);
       }
@@ -244,35 +243,33 @@ export class RoleService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
-      if (!public_ids?.length) {
-        return errorResponse('No role IDs provided', 400);
+      
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'role',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'role');
       }
 
-      if (!hasPermission(user?.role, 'role', 'delete')) {
-        return permissionDenied('delete', 'roles');
-      }
+      if (!public_ids?.length)
+        return errorResponse('No role IDs provided', 400);
 
       const roles = await this.roleRepo.find({
-        where: {
-          public_id: In(public_ids),
-          created_by: user?.id,
-        },
+        where: { public_id: In(public_ids), created_by: user?.id },
         select: ['id', 'name'],
       });
 
-      if (!roles.length) {
-        return errorResponse('No roles found', 404);
-      }
+      if (!roles.length) return errorResponse('No roles found', 404);
 
-      // Check for system roles
       const systemRoles = ['super_admin', 'admin', 'employee'];
       const hasSystemRole = roles.some((r) => systemRoles.includes(r.name));
-      if (hasSystemRole) {
+      if (hasSystemRole)
         return errorResponse('Cannot delete system roles', 403);
-      }
 
       const ids = roles.map((r) => r.id);
-
       await this.roleRepo.update({ id: In(ids) }, { deleted_by: user?.id });
       await this.roleRepo.softDelete(ids);
 
@@ -286,12 +283,50 @@ export class RoleService {
     }
   }
 
+  // GET /roles/:public_id/menus — prefill the role-edit screen
+  async getMenus(public_id: string) {
+    try {
+      const role = await this.roleRepo.findOne({ where: { public_id } });
+      if (!role) return errorResponse('Role not found', 404);
+
+      const menus =
+        await this.permissionsService.buildMenuTreeWithRolePermissions(
+          role.value,
+        );
+      return successResponse(menus, 'Role menus fetched successfully', 200);
+    } catch (error) {
+      return CatchError(error);
+    }
+  }
+
+  // PUT /roles/:public_id/menus — add/edit/remove menu permissions for a role
+  async updateMenus(
+    public_id: string,
+    items: MenuPermissionItemDto[],
+    user: any,
+  ) {
+    try {
+      const role = await this.roleRepo.findOne({ where: { public_id } });
+      if (!role) return errorResponse('Role not found', 404);
+
+      await this.permissionsService.upsertPermissions(role, items);
+
+      const menus =
+        await this.permissionsService.buildMenuTreeWithRolePermissions(
+          role.value,
+        );
+      return successResponse(menus, 'Role menus updated successfully', 200);
+    } catch (error) {
+      return CatchError(error);
+    }
+  }
+
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -301,10 +336,10 @@ export class RoleService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,

@@ -10,18 +10,25 @@ import {
   successResponse,
   permissionDenied,
 } from 'src/common/response/response.util';
-import { hasPermission } from 'src/common/helper/menu.permission.helper';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     @InjectRepository(Group)
     private groupRepo: Repository<Group>,
+    private permissionsService: PermissionsService,
   ) {}
 
   async create(body: CreateGroupDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'group', 'create')) {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'group',
+          'create',
+        ))
+      ) {
         return permissionDenied('create', 'group');
       }
 
@@ -112,7 +119,7 @@ export class GroupsService {
         'group.id',
         'group.public_id',
         'group.name',
-        'group.label',
+        'group.value',
         'group.description',
         'group.active',
         'group.created_at',
@@ -150,6 +157,16 @@ export class GroupsService {
 
   async findOne(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'group',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'group');
+      }
+
       const group = await this.groupRepo.findOne({
         where: {
           public_id,
@@ -170,6 +187,16 @@ export class GroupsService {
 
   async update(public_id: string, body: UpdateGroupDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'group',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'group');
+      }
+
       const group = await this.groupRepo.findOne({
         where: {
           public_id,
@@ -179,10 +206,6 @@ export class GroupsService {
 
       if (!group) {
         return errorResponse('Group not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'group', 'edit')) {
-        return permissionDenied('edit', 'group');
       }
 
       if (body.name && body.name !== group.name) {
@@ -209,6 +232,16 @@ export class GroupsService {
 
   async remove(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'group',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'group');
+      }
+
       const group = await this.groupRepo.findOne({
         where: {
           public_id,
@@ -218,10 +251,6 @@ export class GroupsService {
 
       if (!group) {
         return errorResponse('Group not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'group', 'delete')) {
-        return permissionDenied('delete', 'group');
       }
 
       group.deleted_by = user?.id;
@@ -237,12 +266,18 @@ export class GroupsService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
-      if (!public_ids?.length) {
-        return errorResponse('No group IDs provided', 400);
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'group',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'group');
       }
 
-      if (!hasPermission(user?.role, 'group', 'delete')) {
-        return permissionDenied('delete', 'group');
+      if (!public_ids?.length) {
+        return errorResponse('No group IDs provided', 400);
       }
 
       const groups = await this.groupRepo.find({
@@ -275,9 +310,9 @@ export class GroupsService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -287,10 +322,10 @@ export class GroupsService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,

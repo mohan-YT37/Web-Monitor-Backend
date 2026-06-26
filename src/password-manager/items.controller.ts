@@ -56,10 +56,6 @@ export class ItemsController {
     return this.itemsService.getSorts();
   }
 
-  @Get('tags')
-  getTags() {
-    return this.itemsService.getTags();
-  }
 
   @UseGuards(JwtAuthGuard)
   @Post('create')

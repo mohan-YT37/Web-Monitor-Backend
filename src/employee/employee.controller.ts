@@ -49,8 +49,8 @@ export class EmployeeController {
     if (file) {
       body.document = `${process.env.BASE_URL || 'http://localhost:3000'}/uploads/employee-documents/${file.filename}`;
     }
-    console.log('BODY =>', body);
-    console.log('FILE =>', file);
+    // console.log('BODY =>', body);
+    // console.log('FILE =>', file);
     return this.employeeService.create(body, user);
   }
 
@@ -86,6 +86,17 @@ export class EmployeeController {
     return this.employeeService.getSorts();
   }
 
+
+  @Get('type')
+  getType() {
+    return this.employeeService.getType();
+  }
+
+  @Get('blood_group')
+  getBloodGroup() {
+    return this.employeeService.getBloodGroup();
+  }
+  
   @Get(':public_id')
   findOne(@Param('public_id') public_id: string, @Req() req: Request) {
     const user = req?.user as JwtUser;
@@ -114,8 +125,8 @@ export class EmployeeController {
     if (file) {
       body.document = `${process.env.BASE_URL || 'http://localhost:3000'}/uploads/employee-documents/${file.filename}`;
     }
-    console.log('BODY =>', body);
-    console.log('FILE =>', file);
+    // console.log('BODY =>', body);
+    // console.log('FILE =>', file);
     return this.employeeService.update(public_id, body, user);
   }
 

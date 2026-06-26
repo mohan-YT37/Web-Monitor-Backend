@@ -7,19 +7,22 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy'; // Add this import
+import { Role } from 'src/roles/entities/role.entity';
+import { PermissionsModule } from 'src/permissions/permissions.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User,Role]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '30m' }, //default expires value for accessToken
+        signOptions: { expiresIn: '30m' }, 
       }),
     }),
     PassportModule,
+    PermissionsModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy], // Add JwtStrategy here

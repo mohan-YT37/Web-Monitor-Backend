@@ -42,9 +42,9 @@ export class User {
 
   @Column({ default: 'super_admin' })
   role!: string;
-
-  @Column({ type: 'varchar', length: 4, nullable: true })
-  otp!: string;
+  
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  otp!: string | null;
 
   @Column({ type: 'datetime', nullable: true })
   otp_expire_at!: Date | null;

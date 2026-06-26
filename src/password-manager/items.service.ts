@@ -329,6 +329,7 @@ export class ItemsService {
 
   async findOne(public_id: string, user: any) {
     try {
+
       const item = await this.itemRepo.findOne({
         where: { public_id },
         relations: ['folder'],
@@ -373,9 +374,6 @@ export class ItemsService {
 
   async create(body: CreateItemDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'items', 'create')) {
-        return permissionDenied('create', 'items');
-      }
 
       const folder = await this.folderRepo.findOne({
         where: { id: body.folder_id },
@@ -446,6 +444,7 @@ export class ItemsService {
 
   async update(public_id: string, data: UpdateItemDto, user: any) {
     try {
+ 
       const item = await this.itemRepo.findOne({
         where: { public_id },
         relations: ['folder'],
@@ -719,7 +718,6 @@ export class ItemsService {
         await this.itemRepo.save(item);
 
         await this.logsService.record({
-          // NEW
           user_id: user?.id,
           user_email: user?.email,
           action: 'deleted',
@@ -756,6 +754,7 @@ export class ItemsService {
 
   async bulkRemove(public_ids: string[], user: any) {
     try {
+
       if (!public_ids || public_ids.length === 0) {
         return errorResponse('No items selected for deletion', 400);
       }
@@ -826,10 +825,8 @@ export class ItemsService {
           { public_id: In(hardDeleteIds) },
           { deleted_by: user?.id },
         );
-        const hardDeleted = items.filter(
-          (
-            i, // NEW
-          ) => hardDeleteIds.includes(i.public_id),
+        const hardDeleted = items.filter((i) =>
+          hardDeleteIds.includes(i.public_id),
         );
         await Promise.all(
           hardDeleted.map((item) =>
@@ -1218,9 +1215,9 @@ export class ItemsService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -1230,27 +1227,13 @@ export class ItemsService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,
     );
-  }
-
-  async getTags() {
-    try {
-      const items = await this.itemRepo.find({ select: ['tags'] });
-      const tagSet = new Set<string>();
-      items.forEach((i) => (i.tags || []).forEach((t) => tagSet.add(t)));
-      const tags = Array.from(tagSet)
-        .sort()
-        .map((t, idx) => ({ id: idx + 1, value: t, label: t }));
-      return successResponse(tags, 'Tags fetched successfully', 200);
-    } catch (error) {
-      return CatchError(error);
-    }
   }
 }

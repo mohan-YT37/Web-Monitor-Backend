@@ -10,18 +10,25 @@ import {
   successResponse,
   permissionDenied,
 } from 'src/common/response/response.util';
-import { hasPermission } from 'src/common/helper/menu.permission.helper';
+import  { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class TagService {
   constructor(
     @InjectRepository(Tag)
     private tagRepo: Repository<Tag>,
+     private permissionsService: PermissionsService,
   ) {}
 
   async create(body: CreateTagDto, user: any) {
     try {
-      if (!hasPermission(user?.role, 'tags', 'create')) {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'tags',
+          'create',
+        ))
+      ) {
         return permissionDenied('create', 'tags');
       }
 
@@ -116,7 +123,7 @@ export class TagService {
         'tag.id',
         'tag.public_id',
         'tag.name',
-        'tag.label',
+        'tag.value',
         'tag.description',
         'tag.active',
         'tag.created_at',
@@ -154,6 +161,16 @@ export class TagService {
 
   async findOne(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'tags',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'tags');
+      }
+
       const tag = await this.tagRepo.findOne({
         where: {
           public_id,
@@ -174,6 +191,17 @@ export class TagService {
 
   async update(public_id: string, body: UpdateTagDto, user: any) {
     try {
+       
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'tags',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'tags');
+      }
+
       const tag = await this.tagRepo.findOne({
         where: {
           public_id,
@@ -183,10 +211,6 @@ export class TagService {
 
       if (!tag) {
         return errorResponse('Tag not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'tags', 'edit')) {
-        return permissionDenied('edit', 'tags');
       }
 
       // Check for duplicate name
@@ -214,6 +238,16 @@ export class TagService {
 
   async remove(public_id: string, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'tags',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'tags');
+      }
+      
       const tag = await this.tagRepo.findOne({
         where: {
           public_id,
@@ -223,10 +257,6 @@ export class TagService {
 
       if (!tag) {
         return errorResponse('Tag not found', 404);
-      }
-
-      if (!hasPermission(user?.role, 'tags', 'delete')) {
-        return permissionDenied('delete', 'tags');
       }
 
       tag.deleted_by = user?.id;
@@ -242,12 +272,18 @@ export class TagService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
-      if (!public_ids?.length) {
-        return errorResponse('No tag IDs provided', 400);
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'tags',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'tags');
       }
 
-      if (!hasPermission(user?.role, 'tags', 'delete')) {
-        return permissionDenied('delete', 'tags');
+      if (!public_ids?.length) {
+        return errorResponse('No tag IDs provided', 400);
       }
 
       const tags = await this.tagRepo.find({
@@ -280,9 +316,9 @@ export class TagService {
   async getFilters() {
     return successResponse(
       [
-        { id: 1, value: '', label: 'All' },
-        { id: 2, value: 'ACTIVE', label: 'Active' },
-        { id: 3, value: 'INACTIVE', label: 'In-active' },
+        { id: 1, value: '', name: 'All' },
+        { id: 2, value: 'ACTIVE', name: 'Active' },
+        { id: 3, value: 'INACTIVE', name: 'In-active' },
       ],
       'Filter options fetched successfully',
       200,
@@ -292,10 +328,10 @@ export class TagService {
   async getSorts() {
     return successResponse(
       [
-        { id: 1, value: 'A_Z', label: 'A to Z' },
-        { id: 2, value: 'Z_A', label: 'Z to A' },
-        { id: 3, value: 'NEWEST', label: 'Newest First' },
-        { id: 4, value: 'OLDEST', label: 'Oldest First' },
+        { id: 1, value: 'A_Z', name: 'A to Z' },
+        { id: 2, value: 'Z_A', name: 'Z to A' },
+        { id: 3, value: 'NEWEST', name: 'Newest First' },
+        { id: 4, value: 'OLDEST', name: 'Oldest First' },
       ],
       'Sort options fetched successfully',
       200,

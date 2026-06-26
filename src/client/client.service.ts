@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Like, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 
 import { Client } from './entities/client.entity';
 
@@ -11,19 +11,32 @@ import { CatchError } from 'src/common/response/catch-error.util';
 
 import {
   errorResponse,
+  permissionDenied,
   successResponse,
 } from 'src/common/response/response.util';
+import { PermissionsService } from 'src/permissions/permissions.service';
 
 @Injectable()
 export class ClientService {
   constructor(
     @InjectRepository(Client)
     private clientRepo: Repository<Client>,
+    private permissionsService: PermissionsService,
   ) {}
 
   // CREATE
   async create(body: CreateClientDto, user: any) {
     try {
+      if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'client',
+          'create',
+        ))
+      ) {
+        return permissionDenied('create', 'client');
+      }
+
       const existingClient = await this.clientRepo.findOne({
         where: [{ email_1: body.email_1 }, { mobile_no_1: body.mobile_no_1 }],
       });
@@ -180,6 +193,16 @@ export class ClientService {
   // FIND ONE
   async findOne(public_id: string, user: any) {
     try {
+         if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'client',
+          'view',
+        ))
+      ) {
+        return permissionDenied('view', 'client');
+      }
+
       const client = await this.clientRepo.findOne({
         where: {
           public_id,
@@ -201,6 +224,16 @@ export class ClientService {
   // UPDATE
   async update(public_id: string, body: UpdateClientDto, user: any) {
     try {
+         if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'client',
+          'edit',
+        ))
+      ) {
+        return permissionDenied('edit', 'client');
+      }
+
       const client = await this.clientRepo.findOne({
         where: {
           public_id,
@@ -254,6 +287,16 @@ export class ClientService {
   // DELETE
   async remove(public_id: string, user: any) {
     try {
+         if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'client',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'client');
+      }
+
       const client = await this.clientRepo.findOne({
         where: {
           public_id,
@@ -280,6 +323,17 @@ export class ClientService {
 
   async bulkDelete(public_ids: string[], user: any) {
     try {
+
+         if (
+        !(await this.permissionsService.hasPermission(
+          user?.role,
+          'client',
+          'delete',
+        ))
+      ) {
+        return permissionDenied('delete', 'client');
+      }
+
       if (!public_ids?.length) {
         return errorResponse('No client IDs provided', 400);
       }
@@ -310,6 +364,18 @@ export class ClientService {
     } catch (error) {
       return CatchError(error);
     }
+  }
+  // ContactType
+  async getContactType() {
+    return successResponse(
+      [
+        { id: 1, name: 'Referal', value: 'referal' },
+        { id: 2, name: 'Direct', value: 'direct' },
+        { id: 3, name: 'Marketing', value: 'marketing' },
+      ],
+      'Filter options fetched successfully',
+      200,
+    );
   }
 
   // FILTERS

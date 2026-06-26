@@ -81,7 +81,7 @@ export class UsersController {
   @Delete('bulk-delete')
   bulkDelete(@Body() body: { public_ids: string[] }, @Req() req: Request) {
     const user = req?.user as JwtUser;
-    console.log('userBulkDelete', body?.public_ids);
+    // console.log('userBulkDelete', body?.public_ids);
     return this.usersService.bulkDelete(body.public_ids, user);
   }
   

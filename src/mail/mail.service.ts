@@ -149,6 +149,7 @@ export class MailService {
     otp: string,
     userName: string,
     purpose: string = 'verification',
+    expiryMinutes: number = 10,
   ) {
     try {
       if (!this.transporter) {
@@ -184,8 +185,8 @@ export class MailService {
 <p style="margin:0 0 8px">
   Code expires in
   <strong style="color:#e30505">
-    10 minutes
-  </strong>.
+  ${expiryMinutes} minute${expiryMinutes === 1 ? '' : 's'}
+</strong>.
 </p>
 
 <p style="margin:0">

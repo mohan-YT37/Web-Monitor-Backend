@@ -1,106 +1,113 @@
-export const MENU_MASTER = {
-  dashboard: {
-    id: 1,
+export const MANUAL_MENU_MASTER = [
+  {
     key: 'dashboard',
     label: 'Dashboard',
     path: '/',
     icon: 'LayoutDashboard',
+    sort_order: 1,
   },
-  monitor: {
-    id: 2,
+  {
     key: 'monitor',
     label: 'Monitor',
     path: '/monitor',
     icon: 'Monitor',
+    sort_order: 2,
   },
-  users: {
-    id: 3,
+  {
     key: 'users',
     label: 'Users',
     path: '/users',
     icon: 'Users',
+    sort_order: 3,
   },
-  settings: {
-    id: 4,
+  {
     key: 'settings',
     label: 'Settings',
     path: '/settings',
     icon: 'Settings',
+    sort_order: 4,
     children: [
       {
-        id: 41,
         key: 'client',
         label: 'Client',
         path: '/settings/client',
         icon: 'Building2',
+        sort_order: 1,
       },
       {
-        id: 42,
         key: 'employee',
         label: 'Employee',
         path: '/settings/employee',
         icon: 'UserCog',
+        sort_order: 2,
       },
     ],
   },
-  passwords: {
-    id: 5,
+  {
     key: 'passwords',
     label: 'Passwords',
     path: '/passwords',
     icon: 'RectangleEllipsis',
+    sort_order: 5,
     children: [
       {
-        id: 51,
         key: 'passwordmanager',
         label: 'Password Manager',
         path: '/passwords/password-manager',
         icon: 'KeyRound',
+        sort_order: 1,
       },
       {
-        id: 52,
         key: 'logs',
         label: 'Logs',
         path: '/passwords/logs',
         icon: 'Logs',
+        sort_order: 2,
       },
     ],
   },
-  masters: {
-    id: 6,
+  {
     key: 'masters',
     label: 'Masters',
     path: '/masters',
     icon: 'SquareAsterisk',
+    sort_order: 6,
     children: [
       {
-        id: 61,
         key: 'tags',
         label: 'Tags',
         path: '/masters/tags',
         icon: 'Tags',
+        sort_order: 1,
       },
       {
-        id: 62,
         key: 'role',
         label: 'Roles',
         path: '/masters/roles',
         icon: 'UserRoundKey',
+        sort_order: 2,
       },
       {
-        id: 63,
         key: 'department',
         label: 'Department',
         path: '/masters/department',
         icon: 'Building2',
+        sort_order: 3,
       },
       {
-        id: 64,
         key: 'group',
         label: 'Group',
         path: '/masters/group',
         icon: 'Boxes',
+        sort_order: 4,
+      },
+      {
+        key: 'employeerole',
+        label: 'Employee Role',
+        path: '/masters/employeerole',
+        icon: 'UserRoundKey',
+        sort_order: 5,
       },
     ],
   },
-};
+];
